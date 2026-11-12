@@ -125,3 +125,14 @@ Ogni tratto riparato deve cambiare qualcosa di visibile e qualcosa di emotivo:
 - **Laboratorio:** una traccia del padre in più.
 - **IRIS:** una battuta più umana, la forma d'onda un po' più calda (dal ciano verso il bianco).
 - **Myra:** un pensiero che collega il concetto appreso alla sua vita.
+
+## 14. Interludi tra i minigiochi
+Dopo ogni tratto riparato, una piccola scena giocabile senza enigmi: respiro, relazione Myra–IRIS, un pezzo della storia del padre.
+
+| # | Quando | Titolo | Cosa succede | Cosa si scopre | Stato |
+|---|---|---|---|---|---|
+| 1 | dopo Packet Trace | **La notte** | IRIS spegne il laboratorio per i generatori; resta solo la stufetta. Myra si siede sul letto: due scelte di dialogo con IRIS (`nightTalk`, `motherMemory`), poi il registratore sotto il letto. | Il nastro del padre: «l'antenna non va accesa finché... non è un guasto, è... Myroslava, se sei tu». IRIS inizia a ricostruirlo; al mattino ha una parola: "filtro". | ✅ |
+| 2 | dopo Firewall | **Fuori** | Myra esce nella neve a riallineare un ripetitore. | Iniziali dei genitori incise sull'antenna. | da fare |
+| 3 | prima di Phishing | **L'archivio** | Esplorazione dell'ufficio tecnico. | Chi era di turno la notte del blackout. | da fare |
+
+Le scelte non hanno risposte sbagliate: IRIS le ricorda e le cita più avanti (es. `motherMemory = 1` → la stufetta resta accesa).

@@ -10,7 +10,8 @@ import { Audio } from '../audio/AudioManager';
 //   "MYRA: ..."  → Myra ad alta voce, con il suo ritratto
 //   "( ... )"    → pensiero di Myra, in corsivo
 // IRIS non ha volto: la sua presenza è solo la forma d'onda (docs/NARRATIVE_BIBLE.md §6).
-type Speaker = 'iris' | 'myra' | 'thought';
+type Speaker = 'iris' | 'myra' | 'thought' | 'tape';
+// "NASTRO: ..." → la voce registrata del padre: onda arancione, sempre disturbata.
 
 export class IrisDialog {
   private box: Phaser.GameObjects.Container;
@@ -65,7 +66,8 @@ export class IrisDialog {
       const cb = this.onDone; this.onDone = undefined; cb?.();
       return;
     }
-    if (line.startsWith('IRIS:')) { this.speaker = 'iris'; this.full = line.slice(5).trim(); }
+    if (line.startsWith('NASTRO:')) { this.speaker = 'tape'; this.full = line.slice(7).trim(); }
+    else if (line.startsWith('IRIS:')) { this.speaker = 'iris'; this.full = line.slice(5).trim(); }
     else if (line.startsWith('MYRA:')) { this.speaker = 'myra'; this.full = line.slice(5).trim(); }
     else if (line.startsWith('(')) { this.speaker = 'thought'; this.full = line; }
     else { this.speaker = 'iris'; this.full = line; }
@@ -81,28 +83,65 @@ export class IrisDialog {
       // preferisci tagliare dopo un punto, se c'è
       for (let k = cut; k > cut / 2; k--) if (/[.?!:]$/.test(words[k - 1])) { cut = k; break; }
       const rest = words.slice(cut).join(' ');
-      const prefix = this.speaker === 'iris' ? 'IRIS: ' : this.speaker === 'myra' ? 'MYRA: ' : '';
+      const prefix = this.speaker === 'iris' ? 'IRIS: ' : this.speaker === 'myra' ? 'MYRA: ' : this.speaker === 'tape' ? 'NASTRO: ' : '';
       this.queue.unshift(this.speaker === 'thought' ? `(${rest.replace(/^\(/, '')}` : prefix + rest);
       this.full = words.slice(0, cut).join(' ') + (this.speaker === 'thought' ? ' …)' : ' …');
       if (this.speaker === 'thought') this.full = this.full.replace(/\) …\)$/, ' …)');
     }
-    const iris = this.speaker === 'iris';
-    this.label.setText(iris ? 'I.R.I.S.' : this.speaker === 'myra' ? 'MYRA' : 'MYRA').setColor(hex(iris ? P.cyan3 : P.lamp2));
-    this.text.setColor(hex(iris ? P.cyan3 : P.cream2)).setFontStyle(this.speaker === 'thought' ? 'italic' : 'normal');
-    this.portrait.setVisible(!iris);
+    const iris = this.speaker === 'iris', tape = this.speaker === 'tape';
+    this.label.setText(iris ? 'I.R.I.S.' : tape ? 'NASTRO · voce registrata' : 'MYRA').setColor(hex(iris ? P.cyan3 : P.lamp2));
+    this.text.setColor(hex(iris ? P.cyan3 : tape ? P.lamp2 : P.cream2)).setFontStyle(this.speaker === 'thought' || tape ? 'italic' : 'normal');
+    this.portrait.setVisible(!iris && !tape);
     this.glitch = iris && this.full.startsWith('...') ? 600 : 0;
     this.shown = 0; this.timer = 0;
     this.text.setText('');
   }
 
+  // --- Scelte: Myra risponde scegliendo una frase (↑ ↓ per scegliere, E per confermare)
+  choosing = false;
+  private options: string[] = [];
+  private sel = 0;
+  private onChoose?: (i: number) => void;
+
+  choose(options: string[], cb: (i: number) => void) {
+    this.options = options; this.sel = 0; this.onChoose = cb;
+    this.choosing = true; this.open = true;
+    this.box.setVisible(true);
+    this.speaker = 'myra';
+    this.label.setText('MYRA · scegli  (↑ ↓  poi E)').setColor(hex(P.lamp2));
+    this.portrait.setVisible(true);
+    this.wave.clear();
+    this.full = ''; this.shown = 0;
+    this.renderChoices();
+  }
+
+  move(d: number) {
+    if (!this.choosing) return;
+    this.sel = (this.sel + d + this.options.length) % this.options.length;
+    Audio.click();
+    this.renderChoices();
+  }
+
+  private renderChoices() {
+    this.text.setFontStyle('normal').setColor(hex(P.cream2))
+      .setText(this.options.map((o, i) => `${i === this.sel ? '> ' : '   '}${o}`).join('\n'));
+  }
+
   advance() {
     if (!this.open) return;
+    if (this.choosing) {
+      this.choosing = false; this.open = false; this.box.setVisible(false);
+      Audio.confirm();
+      const cb = this.onChoose; this.onChoose = undefined; cb?.(this.sel);
+      return;
+    }
     if (this.shown < this.full.length) { this.shown = this.full.length; this.text.setText(this.full); }
     else { Audio.click(); this.next(); }
   }
 
   update(dt: number) {
     if (!this.open) return;
+    if (this.choosing) { this.more.setVisible(false); return; }
     const talking = this.shown < this.full.length;
     this.drawWave(talking);
     this.more.setVisible(!talking && Math.floor(this.scene.time.now / 450) % 2 === 0);
@@ -119,11 +158,13 @@ export class IrisDialog {
   // L'onda di IRIS: piatta quando tace, viva quando parla, spezzata quando è disturbata
   private drawWave(talking: boolean) {
     const g = this.wave.clear();
-    if (this.speaker !== 'iris') return;
+    if (this.speaker !== 'iris' && this.speaker !== 'tape') return;
+    const tape = this.speaker === 'tape';
+    if (tape) this.glitch = Math.max(this.glitch, 200);
     const { x, y, w, h } = this.waveRect, t = this.scene.time.now;
-    g.lineStyle(1, P.cyan1, 0.6);
+    g.lineStyle(1, tape ? P.lamp0 : P.cyan1, 0.6);
     for (let i = 1; i < 4; i++) g.lineBetween(x, y + (h * i) / 4, x + w, y + (h * i) / 4); // griglia
-    g.lineStyle(2, P.cyan3, 1);
+    g.lineStyle(2, tape ? P.lamp2 : P.cyan3, 1);
     g.beginPath();
     const amp = talking ? 10 : 1.5;
     this.glitch = Math.max(0, this.glitch - 16);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEBUG, VIEW_W } from '../core/config';
+import { DEBUG, VIEW_W, VIEW_H } from '../core/config';
 import { P, hex } from '../core/palette';
 import { FONT } from '../core/fonts';
 import { loadSave, writeSave, SaveData } from '../core/save';
@@ -130,6 +130,7 @@ export class StationScene extends Phaser.Scene {
     this.keys.E.on('down', interact);
     this.keys.SPACE.on('down', interact);
     this.keys.ESC.on('down', () => this.togglePause());
+    for (const [k, d] of [['UP', -1], ['W', -1], ['DOWN', 1], ['S', 1]] as const) this.keys[k].on('down', () => this.iris.move(d));
     this.keys.M.on('down', () => { if (this.scene.isActive() && !this.paused && !this.iris.open && this.state.flags.irisAwake && this.tutStep < 0) this.openPath('view'); });
     this.events.off('resume');
     this.events.on('resume', () => { this.input.keyboard!.resetKeys(); });
@@ -142,6 +143,7 @@ export class StationScene extends Phaser.Scene {
     Audio.unlock();
     Audio.setMusic('station');
     this.applyPower(true);
+    if (this.roomId === 'lab' && this.state.flags.nightStarted && !this.state.flags.nightDone) this.setNight(true, true);
     cam.fadeIn(1200, 0, 0, 0);
     this.startPos = { x: this.player.x, y: this.player.y };
 
@@ -325,7 +327,7 @@ export class StationScene extends Phaser.Scene {
   private refreshObjective() {
     const f = this.state.flags;
     let text = '';
-    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored ? 'Tratto 3 · Filtro: prossimamente' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
+    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored && f.nightStarted && !f.nightDone ? 'Riposati sul letto' : f.routingRestored ? 'Tratto 3 · Filtro: prossimamente' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
     this.objective?.setText(text).setVisible(!!text);
   }
 
@@ -339,6 +341,7 @@ export class StationScene extends Phaser.Scene {
   private onPathClosed(mode: string) {
     this.input.keyboard!.resetKeys();
     if (mode === 'intro') { this.setTutorial(3); this.save(); }
+    if (mode === 'repaired' && this.state.flags.routingRestored && !this.state.flags.nightStarted) { this.time.delayedCall(500, () => this.nightIntro()); return; }
     if (mode === 'repaired') this.time.delayedCall(400, () => this.iris.say([
       '(Una porta aperta. Una spia verde.)',
       '(Non è ancora un segnale. Ma è la prima cosa, in mesi, che risponde quando chiamo.)',
@@ -405,6 +408,138 @@ export class StationScene extends Phaser.Scene {
         this.refreshObjective();
         this.save();
         this.time.delayedCall(600, () => this.openPath('repaired', 1));
+      });
+    });
+  }
+
+  // ===== INTERLUDIO 1 · LA NOTTE (docs/NARRATIVE_BIBLE.md §12) =====
+  // Dopo Packet Trace: IRIS spegne il laboratorio per i generatori. Myra resta con la stufetta.
+  // Una conversazione a scelte con IRIS, poi il nastro del padre sotto il letto.
+  private night = false;
+
+  private setNight(on: boolean, instant = false) {
+    this.night = on;
+    const target = on ? 0.62 : 0;
+    if (instant) this.dark = target;
+    else this.tweens.addCounter({ from: this.dark, to: target, duration: 2500, onUpdate: (tw) => { this.dark = tw.getValue(); } });
+    Audio.setMusic(on ? 'off' : 'station');
+    Audio.bed('hum', !on);
+  }
+
+  private nightIntro() {
+    this.iris.say([
+      'IRIS: Myra. I generatori sono al limite. Le strade nuove consumano più di quanto pensassi.',
+      'IRIS: Devo spegnere il laboratorio per qualche ora. Lascio accesa solo la stufetta.',
+      'MYRA: E tu?',
+      'IRIS: Io resto. Riposati. Il letto è lì, vicino al caldo.',
+    ], () => {
+      this.state.flags.nightStarted = true;
+      Audio.power();
+      this.setNight(true);
+      this.refreshObjective();
+      this.save();
+    });
+  }
+
+  private card(text: string, hold: number, cb: () => void) {
+    const bg = this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 1).setOrigin(0).setScrollFactor(0).setDepth(20000).setAlpha(0);
+    const t = this.add.text(VIEW_W / 2, VIEW_H / 2, text, { fontFamily: FONT, fontSize: '22px', color: hex(P.cream2), fontStyle: 'italic' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(20001).setAlpha(0);
+    this.tweens.add({ targets: bg, alpha: 1, duration: 900, onComplete: () => {
+      this.tweens.add({ targets: t, alpha: 1, duration: 700, hold, yoyo: true, onComplete: () => {
+        cb();
+        this.tweens.add({ targets: bg, alpha: 0, duration: 1200, onComplete: () => { bg.destroy(); t.destroy(); } });
+      } });
+    } });
+  }
+
+  private nightScene() {
+    const f = this.state.flags;
+    this.paused = true;
+    this.player.setVelocity(0, 0);
+    this.card('Più tardi.', 900, () => {
+      this.player.setPosition(1135 * S, 600 * S);
+      this.player.anims.stop();
+      this.player.setFrame('right-0');
+      this.cameras.main.stopFollow();
+      this.cameras.main.pan(1250 * S, 600 * S, 2500, 'Sine.easeInOut');
+      this.time.delayedCall(1800, () => {
+        this.paused = false;
+        this.iris.say([
+          '(La stufetta ticchetta. Fuori la neve cade senza fare rumore.)',
+          'MYRA: IRIS? Sei ancora lì?',
+          'IRIS: Sono sempre qui. Ho spento quasi tutto. Ma non me.',
+        ], () => this.iris.choose(['Tu dormi?', 'Ti senti sola, qui dentro?', 'Non dire niente. Resta e basta.'], (a) => {
+          const answers = [
+            ['MYRA: Tu dormi?', 'IRIS: Non come te. Quando la stazione è spenta io... aspetto.', 'IRIS: Non so se è la stessa cosa.', 'MYRA: Aspettare è peggio, credo.'],
+            ['MYRA: Ti senti sola, qui dentro?', 'IRIS: Prima che arrivassi tu ho contato duecentoundici giorni senza una voce.', 'IRIS: Non so se "sola" è la parola giusta. Ma ho smesso di contare.'],
+            ['IRIS: ...', '(La sua onda resta accesa, piano. Come un respiro.)'],
+          ][a];
+          f.nightTalk = a;
+          this.iris.say([...answers, 'IRIS: Posso farti io una domanda?', 'MYRA: Sì.', 'IRIS: Com\'era tua madre?'],
+            () => this.iris.choose(['Cantava mentre cucinava.', 'Aveva paura del buio. Come me.', 'Non ce la faccio a parlarne.'], (b) => {
+              f.motherMemory = b;
+              const mem = [
+                ['MYRA: Sempre la stessa canzone, sbagliando le parole. Io la correggevo, e lei rideva.', 'IRIS: Mi piacerebbe sentirla, un giorno.', 'MYRA: Anche a me. Di nuovo.'],
+                ['MYRA: Lasciava accesa la luce del corridoio. Diceva che era per me. Era per tutte e due.', 'IRIS: Allora la stufetta resta accesa tutta la notte.'],
+                ['IRIS: Va bene. Non serve.', 'IRIS: Sarò qui anche quando ce la farai.'],
+              ][b];
+              this.iris.say([...mem, '(Mi stendo. Sotto il letto, il piede tocca qualcosa di duro.)'], () => this.tapeFound());
+            }));
+        }));
+      });
+    });
+  }
+
+  private tapeFound() {
+    const f = this.state.flags;
+    const c = this.add.container(VIEW_W / 2, VIEW_H / 2 - 40).setScrollFactor(0).setDepth(15000).setAlpha(0);
+    const g = this.add.graphics();
+    g.fillStyle(P.petrol0, 0.95).fillRect(-120, -48, 240, 96).lineStyle(1, P.lamp0).strokeRect(-120, -48, 240, 96);
+    g.fillStyle(0x2a2622).fillRect(-50, -34, 100, 44).lineStyle(1, P.metal2).strokeRect(-50, -34, 100, 44);
+    g.fillStyle(P.metal0).fillCircle(-22, -14, 9).fillCircle(22, -14, 9).fillStyle(P.cream2, 0.8).fillRect(-30, 0, 60, 6);
+    const t = this.add.text(0, 18, 'Un registratore a cassette.\nSull\'etichetta, a matita: «per chi ascolta».', { fontFamily: FONT, fontSize: '14px', color: hex(P.cream2), align: 'center' }).setOrigin(0.5, 0);
+    c.add([g, t]);
+    Audio.click();
+    this.tweens.add({ targets: c, alpha: 1, duration: 500 });
+    this.iris.say([
+      '(La sua grafia. Ovunque la riconoscerei.)',
+      'MYRA: IRIS... c\'è un nastro. Lo ascolto.',
+    ], () => {
+      this.tweens.add({ targets: c, alpha: 0, duration: 400, onComplete: () => c.destroy() });
+      Audio.type(); Audio.click();
+      this.iris.say([
+        'NASTRO: ...canale sei, ore quattro e cinquanta. Se qualcuno trova questo...',
+        'NASTRO: ...l\'antenna non va accesa finché... ‹nastro rovinato› ...non è un guasto, è...',
+        'NASTRO: ...Myroslava. Se sei tu... ‹fruscio›',
+        'MYRA: ...Papà.',
+        'IRIS: La voce corrisponde alle registrazioni di turno. Oleh Kovalenko.',
+        'IRIS: Il nastro è danneggiato. Posso provare a ricostruirlo, un pezzo alla volta. Ci vorrà tempo.',
+        'MYRA: Prenditi tutto il tempo che serve. Io non vado da nessuna parte.',
+        ...(f.motherMemory === 1 ? ['IRIS: Buonanotte, Myra. La stufetta resta accesa.'] : ['IRIS: Buonanotte, Myra.']),
+      ], () => this.morning());
+    });
+  }
+
+  private morning() {
+    const f = this.state.flags;
+    this.paused = true;
+    this.card('Mattina.', 900, () => {
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      f.nightDone = true; f.fatherTape = true;
+      this.setNight(false, true);
+      this.applyPower(true);
+      this.refreshObjective();
+      this.save();
+      this.time.delayedCall(1300, () => {
+        this.paused = false;
+        Audio.power();
+        this.iris.say([
+          'IRIS: Buongiorno. I generatori hanno retto. Il laboratorio è di nuovo acceso.',
+          '(Ho dormito. Per la prima volta da settimane, senza sognare la strada.)',
+          'IRIS: Ho già cominciato con il nastro. Per ora ho solo una parola in più: "filtro".',
+          'MYRA: Il tratto tre.',
+        ]);
       });
     });
   }
@@ -538,6 +673,8 @@ export class StationScene extends Phaser.Scene {
       bed: ['(Un letto. Qualcuno dormiva qui durante i turni di notte. Una coperta che sa di polvere e di freddo.)'],
       back: ['(La sala controllo è dall\'altra parte.)'],
     };
+    if (id === 'bed' && f.nightStarted && !f.nightDone) return this.nightScene();
+    if (id === 'bench' && f.nightStarted && !f.nightDone) return this.iris.say(['IRIS: Il banco è spento. Riposati, Myra. Domani riprendiamo.']);
     if (id === 'bench' && f.gatewayRestored && !f.routingRestored) return this.openPacketTrace();
     if (id === 'bench' && f.routingRestored) return this.iris.say(['IRIS: Il banco è libero. Le strade ora funzionano in entrambi i sensi.']);
     if (id === 'fdesk') f.fatherDesk = true;
@@ -559,6 +696,9 @@ export class StationScene extends Phaser.Scene {
       });
       this.brush.setScale(0.35);
       this.darkRT.erase(this.brush, this.player.x, this.player.y - 40);
+    } else if (this.night) {
+      this.brush.setScale(1.6); this.darkRT.erase(this.brush, 1462 * S, 665 * S);
+      this.brush.setScale(0.5); this.darkRT.erase(this.brush, this.player.x, this.player.y - 30);
     } else {
       this.R.LAMPS_IMG.forEach((l) => { this.brush.setScale(1.1); this.darkRT.erase(this.brush, l.x * S, l.y * S); });
     }
