@@ -3,6 +3,7 @@ import { makePlaceholders } from '../fx/placeholders';
 import { makeEnvironment } from '../fx/environment';
 import { createPlayerAnims } from '../actors/Player';
 import { loadFonts } from '../core/fonts';
+import { writeSave } from '../core/save';
 
 // Carica gli asset generati e prepara la protagonista: sfondo magenta reso trasparente, frame ritagliati.
 export class BootScene extends Phaser.Scene {
@@ -26,7 +27,20 @@ export class BootScene extends Phaser.Scene {
     createPlayerAnims(this);
     // lo sfondo è dipinto ad alta risoluzione e mostrato a metà: filtro lineare per ridurlo pulito
     ['room-control', 'room-lab', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
-    loadFonts().then(() => this.scene.start(new URLSearchParams(location.search).has('skip') ? 'station' : 'title'));
+    loadFonts().then(() => {
+      const q = new URLSearchParams(location.search);
+      // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
+      if (import.meta.env.DEV && q.has('nd')) {
+        const m = Phaser.Math.Clamp(Number(q.get('nd')) || 1, 1, 3) - 1;
+        writeSave({ act: 1, flags: { power: true, irisAwake: true, tutorialDone: true, ndMission: m }, room: 'control', x: 365, y: 215 });
+        const mgr = this.game.scene;
+        this.scene.start('station');
+        // la scena di boot si ferma: il passaggio al minigioco si fa con un timer del browser
+        setTimeout(() => { mgr.pause('station'); mgr.start('netdefender', { mission: m }); }, 600);
+        return;
+      }
+      this.scene.start(q.has('skip') ? 'station' : 'title');
+    });
   }
 
   private keyPlayer() {
