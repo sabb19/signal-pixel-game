@@ -34,3 +34,6 @@ const game = new Phaser.Game({
 });
 
 if (DEBUG) (window as unknown as { signal: Phaser.Game }).signal = game;
+
+// solo in sviluppo: accesso al gioco dalla console del browser (test e scorciatoie)
+if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game;
