@@ -1,0 +1,530 @@
+import Phaser from 'phaser';
+import { DEBUG, VIEW_W } from '../core/config';
+import { P, hex } from '../core/palette';
+import { FONT } from '../core/fonts';
+import { loadSave, writeSave, SaveData } from '../core/save';
+import * as CONTROL from '../world/controlRoom';
+import * as LAB from '../world/lab';
+
+const ROOMS = { control: CONTROL, lab: LAB } as const;
+type RoomId = keyof typeof ROOMS;
+const S = 0.5; // scala comune degli sfondi
+import { Player } from '../actors/Player';
+import { IrisDialog } from '../iris/IrisDialog';
+import { Audio } from '../audio/AudioManager';
+
+// Sala controllo. Nuova partita: la stazione è al buio, Myra ha solo la torcia.
+// Tutorial come scena (docs/NARRATIVE_BIBLE.md §9): muoversi → quadro elettrico → console → risveglio di IRIS.
+const TUTORIAL = [
+  'Muoviti con  W A S D  oppure con le frecce',
+  'Cerca il quadro elettrico. Quando compare [E], premi E',
+  'Qualcosa si è acceso. Raggiungi la console al centro della sala',
+];
+
+export class StationScene extends Phaser.Scene {
+  private player!: Player;
+  private iris!: IrisDialog;
+  private walls!: Phaser.Physics.Arcade.StaticGroup;
+  private darkRT!: Phaser.GameObjects.RenderTexture;
+  private brush!: Phaser.GameObjects.Image;
+  private prompt!: Phaser.GameObjects.Text;
+  private keys!: Record<string, Phaser.Input.Keyboard.Key>;
+  private state: SaveData = { act: 1, flags: {}, room: 'control', x: 0, y: 0 };
+  private doorZone?: Phaser.GameObjects.Zone;
+  private doorLight!: Phaser.GameObjects.Image;
+  private consoleBeacon!: Phaser.GameObjects.Image;
+  private breakerLed?: Phaser.GameObjects.Image;
+  private screenFx: Phaser.GameObjects.GameObject[] = [];
+  private lampFx: Phaser.GameObjects.Image[] = [];
+  private fixedScreens: Phaser.GameObjects.Graphics[] = [];
+  private tutStep = -1;
+  private tutBox?: Phaser.GameObjects.Container;
+  private tutText?: Phaser.GameObjects.Text;
+  private tutBg?: Phaser.GameObjects.Rectangle;
+  private objective?: Phaser.GameObjects.Text;
+  private startPos = { x: 0, y: 0 };
+  private dark = 0;       // buio attuale (0 = luce piena)
+  private paused = false;
+  private roomId: RoomId = 'control';
+  private entering = false;
+  private leaving = false;
+  private get R() { return ROOMS[this.roomId]; }
+
+  constructor() { super('station'); }
+
+  init(data: { entry?: boolean }) { this.entering = !!data?.entry; }
+
+  create() {
+    const saved = loadSave();
+    const valid = saved && (saved.room === 'control' || saved.room === 'lab');
+    this.state = valid ? saved! : { act: 1, flags: {}, room: 'control', x: 0, y: 0 };
+    this.roomId = this.state.room as RoomId;
+    this.leaving = false;
+    const { ROOM_W, ROOM_H, BLOCKERS, DOOR_BLOCK, OCCLUDERS, LAMPS_IMG, SPAWN_IMG, ENTRY_IMG, KEY } = this.R;
+    this.tutStep = -1; this.tutBox = undefined; this.screenFx = []; this.lampFx = []; this.fixedScreens = []; this.paused = false;
+    const W = ROOM_W * S, H = ROOM_H * S;
+    this.physics.world.setBounds(0, 0, W, H);
+    this.walls = this.physics.add.staticGroup();
+
+    // sfondo e ritagli in primo piano (stessa immagine, frame separati, ordinati per profondità)
+    this.add.image(0, 0, KEY).setOrigin(0).setScale(S).setDepth(-1000);
+    const tex = this.textures.get(KEY);
+    OCCLUDERS.forEach((o, i) => {
+      const [x, y, w, h] = o.rect;
+      if (!tex.has(`occ${i}`)) tex.add(`occ${i}`, 0, x, y, w, h);
+      this.add.image(x * S, y * S, KEY, `occ${i}`).setOrigin(0).setScale(S).setDepth(o.baseY * S);
+    });
+    const block = (r: number[]) => {
+      const z = this.add.zone((r[0] + r[2] / 2) * S, (r[1] + r[3] / 2) * S, r[2] * S, r[3] * S);
+      this.walls.add(z);
+      return z;
+    };
+    BLOCKERS.forEach(block);
+    const isControl = this.roomId === 'control';
+    if (isControl && !this.state.flags.doorServer) this.doorZone = block(DOOR_BLOCK);
+
+    if (isControl) this.addScreenFlicker(); else this.addLabFx();
+    this.doorLight = this.add.image(1405 * S, 330 * S, 'glow').setScale(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(150).setVisible(isControl);
+    LAMPS_IMG.forEach((l) => {
+      const g = this.add.image(l.x * S, l.y * S, 'glow').setScale(2.2).setTint(P.lamp).setAlpha(0.18)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+      this.tweens.add({ targets: g, alpha: 0.22, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      this.lampFx.push(g);
+    });
+    // la console che si risveglia: un battito di luce ciano
+    this.consoleBeacon = this.add.image(735 * S, 410 * S, 'glow').setScale(1.3, 0.8).setTint(P.cyan).setAlpha(0)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(281.6);
+
+    // spia d'emergenza del quadro elettrico: l'unica luce nel buio, indica dove andare
+    this.breakerLed = this.add.image(1055 * S, 150 * S, 'glow').setScale(0.6).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100).setVisible(isControl);
+    this.tweens.add({ targets: this.breakerLed, alpha: 0.15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    const start = this.entering ? { x: ENTRY_IMG.x * S, y: ENTRY_IMG.y * S }
+      : valid ? { x: saved!.x, y: saved!.y } : { x: SPAWN_IMG.x * S, y: SPAWN_IMG.y * S };
+    this.player = new Player(this, start.x, start.y);
+    this.physics.add.collider(this.player, this.walls);
+
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, W, H);
+    cam.startFollow(this.player, true, 0.1, 0.1);
+
+    this.add.particles(0, 0, 'px', {
+      x: { min: 0, max: W }, y: { min: 0, max: H },
+      lifespan: 7000, speedX: { min: -3, max: 3 }, speedY: { min: -2, max: 2 },
+      alpha: { start: 0.35, end: 0 }, tint: P.cream2, frequency: 200, maxAliveParticles: 45,
+    }).setDepth(9200);
+
+    this.darkRT = this.add.renderTexture(0, 0, W, H).setOrigin(0).setDepth(9000);
+    this.brush = this.make.image({ key: 'light', add: false }).setOrigin(0.5);
+
+    this.prompt = this.add.text(0, 0, '', {
+      fontFamily: FONT, fontSize: '15px', color: hex(P.cyan3), backgroundColor: hex(P.petrol0), padding: { x: 4, y: 1 },
+    }).setOrigin(0.5, 1).setDepth(9500).setVisible(false);
+    this.objective = this.add.text(VIEW_W - 10, 10, '', { fontFamily: FONT, fontSize: '15px', color: hex(P.cream), backgroundColor: '#0e1a1acc', padding: { x: 6, y: 3 } })
+      .setOrigin(1, 0).setScrollFactor(0).setDepth(9600);
+
+    this.iris = new IrisDialog(this);
+
+    const kb = this.input.keyboard!;
+    this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ESC,M,ONE,TWO,THREE,FOUR,U,R,P') as Record<string, Phaser.Input.Keyboard.Key>;
+    const interact = () => { if (this.paused) return; if (this.iris.open) this.iris.advance(); else this.tryInteract(); };
+    this.keys.E.on('down', interact);
+    this.keys.SPACE.on('down', interact);
+    this.keys.ESC.on('down', () => this.togglePause());
+    this.keys.M.on('down', () => { if (!this.paused && !this.iris.open && this.state.flags.irisAwake && this.tutStep < 0) this.openPath('view'); });
+    this.events.off('resume');
+    this.events.on('resume', () => { this.input.keyboard!.resetKeys(); });
+    this.events.off('minigame-closed');
+    this.events.off('signalpath-closed');
+    this.events.on('signalpath-closed', (mode: string) => this.onPathClosed(mode));
+    this.events.on('minigame-closed', (r: { id: string; completed: boolean; mission: number }) => this.onMinigameClosed(r));
+    if (DEBUG) this.setupDebug();
+
+    Audio.unlock();
+    Audio.setMusic('station');
+    this.applyPower(true);
+    cam.fadeIn(1200, 0, 0, 0);
+    this.startPos = { x: this.player.x, y: this.player.y };
+
+    if (!this.state.flags.power) {
+      Audio.bed('wind', true, 0.4);
+      this.time.delayedCall(1300, () => this.iris.say([
+        '(Fa freddo anche qui dentro. Ma almeno non nevica.)',
+        '(Buio. Se questa stazione ha ancora una voce, prima serve corrente.)',
+      ], () => this.setTutorial(0)));
+    } else if (!this.state.flags.irisAwake) {
+      // partita ripresa dopo aver dato corrente ma prima di svegliare IRIS
+      this.tweens.add({ targets: this.consoleBeacon, alpha: 0.45, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      this.time.delayedCall(800, () => this.setTutorial(2));
+    } else if (this.roomId === 'lab' && !this.state.flags.labVisited) {
+      this.state.flags.labVisited = true;
+      this.save();
+      this.refreshObjective();
+      this.time.delayedCall(900, () => this.iris.say([
+        '(Fa più caldo qui. Una stufetta accesa, una lampada sulla scrivania.)',
+        'IRIS: Laboratorio di diagnostica. Ho mantenuto attivi riscaldamento e illuminazione minima.',
+        'MYRA: Per chi? Non c\'era nessuno.',
+        'IRIS: ...Procedura standard.',
+        'IRIS: Da qui posso isolare un tratto di rete alla volta e portarlo sul banco di prova. Ripararlo qui non mette a rischio il resto.',
+        '(Un pezzo alla volta.)',
+      ]));
+    } else this.refreshObjective();
+  }
+
+  // --- Corrente: tutto ciò che cambia quando la stazione si riaccende
+  private applyPower(instant = false) {
+    const on = !!this.state.flags.power;
+    this.dark = on ? 0 : 0.72; // al buio la sala resta intuibile: sagome, riflessi
+    this.breakerLed?.setVisible(!on && this.roomId === 'control');
+    this.screenFx.forEach((o) => (o as unknown as Phaser.GameObjects.Components.Visible).setVisible(on));
+    this.lampFx.forEach((l) => l.setVisible(on));
+    this.doorLight.setVisible(on && this.roomId === 'control').setTint(this.state.flags.doorServer ? P.cyan : P.red).setAlpha(0.35);
+    if (on) { Audio.bed('hum', true); if (!instant) Audio.bed('wind', false); }
+  }
+
+  private powerUp() {
+    this.state.flags.power = true;
+    Audio.power();
+    this.cameras.main.shake(300, 0.004);
+    // le luci tornano a scatti, come vecchi neon
+    const steps = [0.72, 0.35, 0.7, 0.2, 0.5, 0.1, 0];
+    steps.forEach((d, i) => this.time.delayedCall(140 * i, () => { this.dark = d; }));
+    this.time.delayedCall(140 * steps.length, () => {
+      this.applyPower();
+      this.save();
+      // la console si accende da sola
+      this.time.delayedCall(600, () => {
+        Audio.boot();
+        this.tweens.add({ targets: this.consoleBeacon, alpha: 0.45, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+        this.iris.say(['(La console al centro si è accesa da sola. Sta... aspettando?)'], () => this.setTutorial(2));
+      });
+    });
+  }
+
+  private wakeIris() {
+    this.tweens.killTweensOf(this.consoleBeacon);
+    this.consoleBeacon.setAlpha(0);
+    this.state.flags.irisAwake = true;
+    Audio.boot();
+    this.iris.say([
+      'IRIS: ...alimentazione ripristinata. Sessione 0412... interrotta.',
+      'IRIS: Utente non riconosciuto. Identificarsi.',
+      'MYRA: Mi chiamo Myra. Io... cerco un segnale.',
+      'IRIS: Nessun operatore in servizio da 214 giorni. Assegno accesso temporaneo: MYRA.',
+      'IRIS: Sono I.R.I.S., sistema di supervisione della stazione. Collegamento satellitare: assente.',
+      'MYRA: Puoi chiamare qualcuno? Chiunque?',
+      'IRIS: Negativo. Questa console non raggiunge nemmeno il gateway della rete locale.',
+      'MYRA: Non so cosa sia un gateway.',
+      'IRIS: ...Allora cominceremo da lì. Prima ti mostro dove siamo.',
+    ], () => { this.save(); this.openPath('intro'); });
+  }
+
+  // i monitor con errore lampeggiano sopra il dipinto; i canali attivi pulsano
+  private addScreenFlicker() {
+    [[790, 95, 80, 55], [680, 180, 80, 55]].forEach(([x, y, w, h]) => {
+      // schermo riparato: dati ciano al posto dell'errore rosso (visibile quando il gateway torna)
+      const fixed = this.add.graphics().setDepth(156.4);
+      fixed.fillStyle(0x0b1a1f).fillRect(x * S, y * S, w * S, h * S);
+      for (let k = 0; k < 5; k++) fixed.fillStyle(P.cyan, 0.9).fillRect(x * S + 3, y * S + 4 + k * 5, 8 + ((k * 13 + x) % 22), 2);
+      fixed.setVisible(!!this.state.flags.gatewayRestored);
+      this.fixedScreens.push(fixed);
+      const r = this.add.rectangle(x * S, y * S, w * S, h * S, P.red2, 0).setOrigin(0).setDepth(156.5).setBlendMode(Phaser.BlendModes.ADD);
+      const tick = () => {
+        if (!this.state.flags.gatewayRestored) { r.setAlpha(0.35); this.time.delayedCall(90, () => r.setAlpha(0)); }
+        this.time.delayedCall(Phaser.Math.Between(600, 2400), tick);
+      };
+      this.time.delayedCall(Phaser.Math.Between(300, 1500), tick);
+      this.screenFx.push(r);
+    });
+    [[565, 95, 80, 55], [565, 180, 80, 55], [795, 180, 80, 55], [645, 385, 80, 55], [745, 385, 80, 55]].forEach(([x, y, w, h]) => {
+      const c = this.add.rectangle(x * S, y * S, w * S, h * S, P.cyan, 0.05).setOrigin(0).setDepth(y < 300 ? 156.5 : 281.5).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: c, alpha: 0.14, duration: Phaser.Math.Between(90, 160), yoyo: true, repeat: -1, repeatDelay: Phaser.Math.Between(1500, 4000) });
+      this.screenFx.push(c);
+    });
+  }
+
+  // --- Interazione
+
+  private nearest() {
+    const p = this.player.probe();
+    let best: (typeof CONTROL.SPOTS)[number] | undefined, bd = Infinity;
+    for (const s of this.R.SPOTS) {
+      const d = Phaser.Math.Distance.Between(p.x, p.y, s.x * S, s.y * S);
+      if (d < s.r * S && d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
+  private tryInteract() {
+    const s = this.nearest();
+    if (!s) return;
+    const f = this.state.flags;
+    Audio.click();
+    if (this.roomId === 'lab') return this.labInteract(s.id);
+    if (s.id === 'breaker' && !f.power) {
+      this.iris.say(['(Leve, fusibili, un interruttore generale. Questo almeno lo so fare.)'], () => this.powerUp());
+      if (this.tutStep === 1) this.tutHide();
+      return;
+    }
+    if (s.id === 'console' && f.power && !f.irisAwake) { this.tutHide(); this.wakeIris(); return; }
+    if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) { this.openNetDefender(); return; }
+
+    const dark = !f.power;
+    const lines: Record<string, string[]> = {
+      breaker: ['(La corrente c\'è. Il resto non dipende da una leva.)'],
+      console: dark ? ['(Uno schermo spento. Senza corrente non serve a niente.)']
+        : f.gatewayRestored ? ['IRIS: Connessione con il gateway stabile.', 'IRIS: La porta est risponde di nuovo alla rete.']
+        : [],
+      monitors: dark ? ['(Schermi spenti. Sul vetro, impronte di dita. Qualcuno li ha toccati in fretta.)']
+        : ['(Due schermi rossi. Gli altri mostrano numeri fermi alle 04:58 di quella notte.)'],
+      racks: dark ? ['(Armadi pieni di cavi. Non saprei nemmeno da dove iniziare.)'] : ['(Lucine che lampeggiano. Per ora non dicono niente a nessuno.)'],
+      map: ['(Una cartina. Spilli rossi sulle stazioni che non rispondono più. Ce ne sono tanti.)'],
+      deskL: ['(Il quaderno dei turni. Ultima riga: "Manutenzione alle 05:00. Credenziali come sempre." Poi più niente.)'],
+      deskR: ['(Una tazza. Caffè seccato da mesi. Chi beveva qui è andato via di corsa.)'],
+      door: f.doorServer
+        ? ['(La porta è aperta. Dall\'altra parte, una luce calda.)']
+        : dark ? ['(Una porta blindata, con una spia spenta. Chiusa.)'] : ['(La spia è rossa. La serratura sembra elettronica.)', ...(f.irisAwake ? ['IRIS: Serratura collegata alla rete locale. Al momento non risponde.'] : [])],
+    };
+    this.iris.say(lines[s.id] ?? ['...']);
+    this.save();
+  }
+
+  // --- Tutorial
+
+  private setTutorial(step: number) {
+    this.tutStep = step;
+    if (step >= TUTORIAL.length) {
+      this.tutHide(); this.tutStep = -1;
+      this.state.flags.tutorialDone = true;
+      Audio.confirm();
+      this.save();
+      this.refreshObjective();
+      return;
+    }
+    if (step > 0) Audio.confirm();
+    if (!this.tutBox) {
+      const bg = this.add.rectangle(0, 0, 310, 46, P.petrol0, 0.88).setOrigin(0).setStrokeStyle(1, P.lamp0);
+      this.tutBg = bg;
+      const title = this.add.text(8, 3, 'COME SI GIOCA', { fontFamily: FONT, fontSize: '13px', color: hex(P.lamp2) });
+      this.tutText = this.add.text(8, 18, '', { fontFamily: FONT, fontSize: '16px', color: hex(P.cream2), wordWrap: { width: 294 } });
+      this.tutBox = this.add.container(10, 10, [bg, title, this.tutText]).setScrollFactor(0).setDepth(9600);
+    }
+    this.tutBox.setVisible(true);
+    this.tutText!.setText(TUTORIAL[step]);
+    this.tutBg?.setSize(310, this.tutText!.height + 26); // il riquadro cresce con il testo
+    this.tutBox.setAlpha(0);
+    this.tweens.add({ targets: this.tutBox, alpha: 1, duration: 300 });
+    this.refreshObjective();
+  }
+
+  private tutHide() { this.tutBox?.setVisible(false); }
+
+  private refreshObjective() {
+    const f = this.state.flags;
+    let text = '';
+    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
+    this.objective?.setText(text).setVisible(!!text);
+  }
+
+  // Il percorso del segnale: lega l'obiettivo di Myra ai minigiochi
+  private openPath(mode: 'intro' | 'repaired' | 'view', fixed = -1) {
+    this.player.setVelocity(0, 0);
+    this.scene.pause();
+    this.scene.launch('signalpath', { flags: this.state.flags, mode, fixed });
+  }
+
+  private onPathClosed(mode: string) {
+    this.input.keyboard!.resetKeys();
+    if (mode === 'intro') { this.setTutorial(3); this.save(); }
+    if (mode === 'repaired') this.time.delayedCall(400, () => this.iris.say([
+      '(Una porta aperta. Una spia verde.)',
+      '(Non è ancora un segnale. Ma è la prima cosa, in mesi, che risponde quando chiamo.)',
+    ]));
+  }
+
+  private openNetDefender() {
+    this.save();
+    this.player.setVelocity(0, 0);
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.pause();
+      this.scene.launch('netdefender', { mission: (this.state.flags as unknown as Record<string, number>).ndMission ?? 0 });
+    });
+  }
+
+  // Conseguenze nel mondo quando Network Defender è completato
+  private onMinigameClosed(r: { id: string; completed: boolean; mission: number }) {
+    this.cameras.main.fadeIn(500, 0, 0, 0);
+    (this.state.flags as unknown as Record<string, number>).ndMission = r.completed ? 0 : r.mission;
+    if (!r.completed) { this.save(); return; }
+    this.state.flags.gatewayRestored = true;
+    this.save();
+    this.time.delayedCall(700, () => {
+      this.fixedScreens.forEach((g) => g.setVisible(true));
+      Audio.power();
+      this.cameras.main.flash(250, 63, 167, 181);
+      this.iris.say([
+        'IRIS: Rete locale ripristinata. Gateway raggiungibile da tutti i dispositivi della sala.',
+        'IRIS: La serratura della porta est è collegata alla rete. Ora risponde.',
+      ], () => {
+        this.openDoor();
+        Audio.door();
+        this.refreshObjective();
+        this.save();
+        this.time.delayedCall(900, () => this.openPath('repaired', 0));
+      });
+    });
+  }
+
+  private openDoor() {
+    this.state.flags.doorServer = true;
+    if (this.doorZone) { this.walls.remove(this.doorZone, true, true); this.doorZone = undefined; }
+    this.doorLight.setTint(P.cyan);
+  }
+
+  private save() {
+    writeSave({ ...this.state, room: this.roomId, x: Math.round(this.player.x), y: Math.round(this.player.y) });
+  }
+
+  // --- Pausa
+  private pauseBox?: Phaser.GameObjects.Container;
+  private togglePause() {
+    if (this.iris.open && !this.paused) return;
+    this.paused = !this.paused;
+    this.physics.world.isPaused = this.paused;
+    if (!this.paused) { this.pauseBox?.destroy(); this.pauseBox = undefined; return; }
+    const items = [
+      { label: 'Riprendi', act: () => this.togglePause() },
+      { label: 'Impostazioni', act: () => { this.scene.pause(); this.scene.launch('settings', { from: 'station' }); } },
+      { label: 'Torna al titolo', act: () => { this.save(); Audio.bed('hum', false); this.scene.start('title'); } },
+    ];
+    let sel = 0;
+    const bg = this.add.rectangle(0, 0, 640, 360, P.night0, 0.75).setOrigin(0);
+    const title = this.add.text(320, 110, 'PAUSA', { fontFamily: FONT, fontSize: '26px', color: hex(P.cream2) }).setOrigin(0.5);
+    const texts = items.map((it, i) => this.add.text(320, 160 + i * 26, it.label, { fontFamily: FONT, fontSize: '20px', color: hex(P.cream) }).setOrigin(0.5));
+    const draw = () => texts.forEach((t, i) => t.setText((i === sel ? '> ' : '') + items[i].label).setColor(hex(i === sel ? P.cyan3 : P.cream)));
+    draw();
+    this.pauseBox = this.add.container(0, 0, [bg, title, ...texts]).setScrollFactor(0).setDepth(30000);
+    const onKey = (e: KeyboardEvent) => {
+      if (!this.pauseBox) { this.input.keyboard!.off('keydown', onKey); return; }
+      if (e.key === 'ArrowUp') sel = (sel + items.length - 1) % items.length;
+      else if (e.key === 'ArrowDown') sel = (sel + 1) % items.length;
+      else if (e.key === 'Enter' || e.key === 'e') { this.input.keyboard!.off('keydown', onKey); items[sel].act(); return; }
+      draw();
+    };
+    this.input.keyboard!.on('keydown', onKey);
+  }
+
+  private setupDebug() {
+    const info = this.add.text(4, 340, '', { fontFamily: 'monospace', fontSize: '9px', color: hex(P.ochre2) }).setScrollFactor(0).setDepth(20000);
+    (['ONE', 'TWO', 'THREE', 'FOUR'] as const).forEach((k, i) => this.keys[k].on('down', () => (this.state.act = i + 1)));
+    this.keys.P.on('down', () => { if (!this.state.flags.power) this.powerUp(); });
+    this.keys.U.on('down', () => { this.state.flags.gatewayRestored = true; this.openDoor(); this.save(); this.refreshObjective(); });
+    this.keys.R.on('down', () => { try { localStorage.removeItem('signal.save.v1'); } catch { /* */ } this.scene.restart(); });
+    const onUpdate = () => info.setText(
+      `DEBUG ${this.roomId} ${Math.round(this.player.x / S)},${Math.round(this.player.y / S)} fps ${Math.round(this.game.loop.actualFps)} · P corrente · U ripara · R azzera`);
+    this.events.on('update', onUpdate);
+    // al cambio stanza la scena riparte: l'ascoltatore va staccato, altrimenti punta a testi distrutti
+    this.events.once('shutdown', () => this.events.off('update', onUpdate));
+  }
+
+  update(_t: number, dt: number) {
+    const k = this.keys;
+    this.player.frozen = this.iris.open || this.paused;
+    this.player.move({
+      up: k.W.isDown || k.UP.isDown, down: k.S.isDown || k.DOWN.isDown,
+      left: k.A.isDown || k.LEFT.isDown, right: k.D.isDown || k.RIGHT.isDown,
+    }, dt);
+    this.iris.update(dt);
+    if (this.tutStep === 0 && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.startPos.x, this.startPos.y) > 40) this.setTutorial(1);
+
+    const s = this.iris.open || this.paused ? undefined : this.nearest();
+    this.prompt.setVisible(!!s);
+    if (s) this.prompt.setText(`[E] ${s.label}`).setPosition(Math.round(this.player.x), Math.round(this.player.y - 100));
+    this.checkExits();
+    this.drawLight();
+  }
+
+  // --- Passaggio tra stanze
+  private checkExits() {
+    if (this.leaving || this.iris.open || this.paused) return;
+    const x = this.player.x / S, y = this.player.y / S;
+    if (this.roomId === 'control' && this.state.flags.doorServer && x > 1385 && y > 200 && y < 470) this.goTo('lab');
+    if (this.roomId === 'lab' && x < 70 && y > 220 && y < 640) this.goTo('control');
+  }
+
+  private goTo(room: RoomId) {
+    this.leaving = true;
+    this.player.setVelocity(0, 0);
+    Audio.door();
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      const first = room === 'lab' && !this.state.flags.labVisited;
+      this.state.room = room;
+      const e = ROOMS[room].ENTRY_IMG;
+      writeSave({ ...this.state, room, x: e.x * S, y: e.y * S });
+      this.scene.restart({ entry: true, firstLab: first });
+    });
+  }
+
+  // --- Laboratorio: effetti vivi e interazioni
+  private addLabFx() {
+    // stufetta e lampada: luce calda che respira
+    const heater = this.add.image(1462 * S, 665 * S, 'glow').setScale(1.8).setTint(P.lamp).setAlpha(0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    this.tweens.add({ targets: heater, alpha: 0.32, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    const lamp = this.add.image(285 * S, 410 * S, 'glow').setScale(2.4).setTint(P.lamp).setAlpha(0.16).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    this.tweens.add({ targets: lamp, alpha: 0.22, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    // oscilloscopi: tracce verdi che pulsano
+    [[860, 262], [1012, 268]].forEach(([x, y], i) => {
+      const o = this.add.image(x * S, y * S, 'glow').setScale(0.9, 0.5).setTint(P.phos).setAlpha(0.1).setBlendMode(Phaser.BlendModes.ADD).setDepth(200);
+      this.tweens.add({ targets: o, alpha: 0.25, duration: 500 + i * 230, yoyo: true, repeat: -1 });
+    });
+    // neve dietro la finestra
+    const snow = this.add.particles(0, 0, 'px', {
+      x: { min: 605 * S, max: 1025 * S }, y: 20 * S, lifespan: 2600,
+      speedY: { min: 10, max: 18 }, speedX: { min: -3, max: 1 }, alpha: { min: 0.4, max: 0.8 }, tint: P.cream2, frequency: 140,
+    }).setDepth(-999);
+    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(605 * S, 20 * S, 420 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
+    // la spia rossa dell'antenna, fuori dalla finestra
+    const red = this.add.image(838 * S, 60 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
+    this.tweens.add({ targets: red, alpha: 0.9, duration: 120, yoyo: true, hold: 200, repeat: -1, repeatDelay: 1600 });
+  }
+
+  private labInteract(id: string) {
+    const f = this.state.flags;
+    const lines: Record<string, string[]> = {
+      bench: ['IRIS: Il banco di prova. Qui i tecnici isolavano un pezzo di rete per studiarlo senza rischi.',
+        'IRIS: Il prossimo tratto da riparare è quello delle strade: i messaggi prendono il percorso sbagliato.',
+        'IRIS: [Prototipo] PACKET TRACE arriva nella prossima fase.'],
+      fdesk: ['(Una sedia di legno, consumata. Sullo schienale qualcuno ha inciso due lettere: O.K.)',
+        '(O.K. ...Oleh Kovalenko. Mio padre.)',
+        '(Era qui. Questa era la sua scrivania.)'],
+      schema: ['(Schemi a matita: antenne, frecce, numeri. La grafia storta la riconoscerei ovunque.)'],
+      board: ['(Biglietti, turni, una cartolina. Una foto con l\'antenna sullo sfondo.)'],
+      window: ['(Da qui si vede l\'antenna. Sta in mezzo alla neve come se aspettasse anche lei.)'],
+      bed: ['(Una branda. Qualcuno dormiva qui durante i turni di notte. Una coperta che sa di polvere e di freddo.)'],
+      back: ['(La sala controllo è dall\'altra parte.)'],
+    };
+    if (id === 'fdesk') f.fatherDesk = true;
+    this.iris.say(lines[id] ?? ['...']);
+    this.save();
+  }
+
+  // Buio con torcia: un cono di luce davanti a Myra, più un piccolo alone intorno
+  private drawLight() {
+    this.darkRT.clear();
+    if (this.dark <= 0) return;
+    this.darkRT.fill(0x05080c, this.dark);
+    if (!this.state.flags.power) {
+      const d = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] }[this.player.facing];
+      const flick = 0.97 + Math.random() * 0.03;
+      [[40, 0.55], [80, 0.75], [120, 0.85]].forEach(([dist, sc]) => {
+        this.brush.setScale(sc * flick);
+        this.darkRT.erase(this.brush, this.player.x + d[0] * dist, this.player.y - 30 + d[1] * dist);
+      });
+      this.brush.setScale(0.35);
+      this.darkRT.erase(this.brush, this.player.x, this.player.y - 40);
+    } else {
+      this.R.LAMPS_IMG.forEach((l) => { this.brush.setScale(1.1); this.darkRT.erase(this.brush, l.x * S, l.y * S); });
+    }
+  }
+}
