@@ -294,6 +294,7 @@ export class StationScene extends Phaser.Scene {
     }
     if (s.id === 'console' && f.power && !f.irisAwake) { this.tutHide(); this.wakeIris(); return; }
     if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) { this.openNetDefender(); return; }
+    if (s.id === 'console' && f.gatewayRestored) return this.offerReplay('netdefender', 'IRIS: La rete locale funziona. Vuoi rifare le prove di configurazione?');
 
     const dark = !f.power;
     const lines: Record<string, string[]> = {
@@ -390,8 +391,22 @@ export class StationScene extends Phaser.Scene {
     });
   }
 
+  // Minigioco già completato: si può rigiocare dall'inizio, senza cambiare i progressi
+  private replaying = false;
+  private offerReplay(scene: string, question: string) {
+    this.iris.say([question], () => this.iris.choose(['Sì, rifacciamole', 'No, va bene così'], (i) => {
+      if (i !== 0) return;
+      this.replaying = true;
+      this.save();
+      this.player.setVelocity(0, 0);
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => { this.scene.pause(); this.scene.launch(scene, { mission: 0 }); });
+    }));
+  }
+
   private onMinigameClosed(r: { id: string; completed: boolean; mission: number }) {
     this.cameras.main.fadeIn(500, 0, 0, 0);
+    if (this.replaying) { this.replaying = false; if (r.completed) this.iris.say(['IRIS: Prove superate di nuovo. Non ti sei dimenticata niente.']); return; }
     if (r.id === 'packettrace') return this.onPacketTraceClosed(r);
     if (r.id === 'firewall') return this.onFirewallClosed(r);
     (this.state.flags as unknown as Record<string, number>).ndMission = r.completed ? 0 : r.mission;
@@ -484,6 +499,7 @@ export class StationScene extends Phaser.Scene {
     const f = this.state.flags;
     if (id === 'back') return this.goTo('lab');
     if (id === 'gate' && f.routingRestored && !f.firewallRestored) return this.openMinigame('firewall', 'fwMission');
+    if (id === 'gate' && f.firewallRestored) return this.offerReplay('firewall', 'IRIS: Il pannello del filtro è ancora acceso. Vuoi rifare le prove?');
     const lines: Record<string, string[]> = {
       gate: ['(La porta è aperta. Dietro, una scala di ferro sale verso il tetto. E verso l\'antenna.)'],
       racks: ['(Centinaia di lucine rosse. Ognuna è una porta che qualcuno ha chiuso.)',
@@ -776,7 +792,7 @@ export class StationScene extends Phaser.Scene {
     if (id === 'bed' && f.nightStarted && !f.nightDone) return this.nightScene();
     if (id === 'bench' && f.nightStarted && !f.nightDone) return this.iris.say(['IRIS: Il banco è spento. Riposati, Myra. Domani riprendiamo.']);
     if (id === 'bench' && f.gatewayRestored && !f.routingRestored) return this.openPacketTrace();
-    if (id === 'bench' && f.routingRestored) return this.iris.say(['IRIS: Il banco è libero. Le strade ora funzionano in entrambi i sensi.']);
+    if (id === 'bench' && f.routingRestored) return this.offerReplay('packettrace', 'IRIS: Il banco è libero. Le strade funzionano. Vuoi rifare le prove?');
     if (id === 'fdesk') f.fatherDesk = true;
     this.iris.say(lines[id] ?? ['...']);
     this.save();
