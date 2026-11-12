@@ -259,7 +259,11 @@ export class StationScene extends Phaser.Scene {
     if (!s) return;
     const f = this.state.flags;
     Audio.click();
-    if (this.roomId === 'lab') return this.labInteract(s.id);
+    if (this.roomId === 'lab') {
+      if (s.id === 'back') return this.goTo('control');
+      return this.labInteract(s.id);
+    }
+    if (s.id === 'door' && f.doorServer) return this.goTo('lab');
     if (s.id === 'breaker' && !f.power) {
       this.iris.say(['(Leve, fusibili, un interruttore generale. Questo almeno lo so fare.)'], () => this.powerUp());
       if (this.tutStep === 1) this.tutHide();
@@ -448,7 +452,7 @@ export class StationScene extends Phaser.Scene {
   private checkExits() {
     if (this.leaving || this.iris.open || this.paused) return;
     const x = this.player.x / S, y = this.player.y / S;
-    if (this.roomId === 'control' && this.state.flags.doorServer && x > 1385 && y > 200 && y < 470) this.goTo('lab');
+    if (this.roomId === 'control' && this.state.flags.doorServer && x > 1345 && y > 200 && y < 575) this.goTo('lab');
     if (this.roomId === 'lab' && x < 70 && y > 220 && y < 640) this.goTo('control');
   }
 
@@ -501,7 +505,7 @@ export class StationScene extends Phaser.Scene {
       schema: ['(Schemi a matita: antenne, frecce, numeri. La grafia storta la riconoscerei ovunque.)'],
       board: ['(Biglietti, turni, una cartolina. Una foto con l\'antenna sullo sfondo.)'],
       window: ['(Da qui si vede l\'antenna. Sta in mezzo alla neve come se aspettasse anche lei.)'],
-      bed: ['(Una branda. Qualcuno dormiva qui durante i turni di notte. Una coperta che sa di polvere e di freddo.)'],
+      bed: ['(Un letto. Qualcuno dormiva qui durante i turni di notte. Una coperta che sa di polvere e di freddo.)'],
       back: ['(La sala controllo è dall\'altra parte.)'],
     };
     if (id === 'fdesk') f.fatherDesk = true;

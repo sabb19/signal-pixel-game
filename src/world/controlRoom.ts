@@ -57,4 +57,4 @@ export const LAMPS_IMG = [
 export const SPAWN_IMG = { x: 760, y: 760 };
 export const KEY = 'room-control';
 // ingresso tornando dal laboratorio (davanti alla porta est)
-export const ENTRY_IMG = { x: 1340, y: 340 };
+export const ENTRY_IMG = { x: 1280, y: 380 };
