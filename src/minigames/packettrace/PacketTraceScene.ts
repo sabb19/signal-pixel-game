@@ -442,7 +442,7 @@ export class PacketTraceScene extends Phaser.Scene {
 
   private nodePos() {
     const y = Y0 + 162, x = X0 + 6;
-    const pts: Record<string, { x: number; y: number }> = { CONSOLE: { x: x + 20, y }, R1: { x: x + 72, y }, R2: { x: x + 128, y }, ANTENNA: { x: x + 182, y }, X: { x: x + 100, y: y + 50 } };
+    const pts: Record<string, { x: number; y: number }> = { CONSOLE: { x: x + 20, y }, R1: { x: x + 72, y }, R2: { x: x + 128, y }, ANTENNA: { x: x + 182, y }, X: { x: x + 100, y: y + 40 } };
     return Object.assign(pts, { y }) as Record<string, { x: number; y: number }> & { y: number };
   }
 
@@ -461,7 +461,7 @@ export class PacketTraceScene extends Phaser.Scene {
       const p = n[k];
       g.fillStyle(P.night).fillRect(p.x - 13, p.y - 9, 26, 18).lineStyle(1, c, ghost ? 0.6 : 1).strokeRect(p.x - 13, p.y - 9, 26, 18);
       if (k === this.cur) g.lineStyle(1, P.lamp2).strokeRect(p.x - 15, p.y - 11, 30, 22);
-      label(p.x, p.y + 11, k === 'X' ? 'NODE-X' : k, ghost ? P.red2 : P.cream, 11);
+      label(p.x, p.y + 11, k === 'X' ? '???' : k, ghost ? P.red2 : P.cream, 11);
       label(p.x, p.y + 21, ip, P.conc, 10);
     };
     // nel 3 la riga sospetta punta a un nodo che non esiste: lo mostriamo come un fantasma
