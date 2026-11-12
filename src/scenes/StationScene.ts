@@ -325,7 +325,7 @@ export class StationScene extends Phaser.Scene {
   private refreshObjective() {
     const f = this.state.flags;
     let text = '';
-    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
+    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored ? 'Tratto 3 · Filtro: prossimamente' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
     this.objective?.setText(text).setVisible(!!text);
   }
 
@@ -356,8 +356,19 @@ export class StationScene extends Phaser.Scene {
   }
 
   // Conseguenze nel mondo quando Network Defender è completato
+  private openPacketTrace() {
+    this.save();
+    this.player.setVelocity(0, 0);
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.pause();
+      this.scene.launch('packettrace', { mission: (this.state.flags as unknown as Record<string, number>).ptMission ?? 0 });
+    });
+  }
+
   private onMinigameClosed(r: { id: string; completed: boolean; mission: number }) {
     this.cameras.main.fadeIn(500, 0, 0, 0);
+    if (r.id === 'packettrace') return this.onPacketTraceClosed(r);
     (this.state.flags as unknown as Record<string, number>).ndMission = r.completed ? 0 : r.mission;
     if (!r.completed) { this.save(); return; }
     this.state.flags.gatewayRestored = true;
@@ -375,6 +386,25 @@ export class StationScene extends Phaser.Scene {
         this.refreshObjective();
         this.save();
         this.time.delayedCall(900, () => this.openPath('repaired', 0));
+      });
+    });
+  }
+
+  private onPacketTraceClosed(r: { completed: boolean; mission: number }) {
+    (this.state.flags as unknown as Record<string, number>).ptMission = r.completed ? 0 : r.mission;
+    if (!r.completed) { this.save(); return; }
+    this.state.flags.routingRestored = true;
+    this.save();
+    this.time.delayedCall(700, () => {
+      Audio.power();
+      this.cameras.main.flash(250, 63, 167, 181);
+      this.iris.say([
+        'IRIS: Strade ripristinate. Ho copiato le correzioni del banco sui router veri della stazione.',
+        '(Mio padre lavorava qui. Forse ha visto anche lui quel NODE-X.)',
+      ], () => {
+        this.refreshObjective();
+        this.save();
+        this.time.delayedCall(600, () => this.openPath('repaired', 1));
       });
     });
   }
@@ -498,7 +528,7 @@ export class StationScene extends Phaser.Scene {
     const lines: Record<string, string[]> = {
       bench: ['IRIS: Il banco di prova. Qui i tecnici isolavano un pezzo di rete per studiarlo senza rischi.',
         'IRIS: Il prossimo tratto da riparare è quello delle strade: i messaggi prendono il percorso sbagliato.',
-        'IRIS: [Prototipo] PACKET TRACE arriva nella prossima fase.'],
+        'IRIS: Prima, ripara la rete locale dalla console.'],
       fdesk: ['(Una sedia di legno, consumata. Sullo schienale qualcuno ha inciso due lettere: O.K.)',
         '(O.K. ...Oleh Kovalenko. Mio padre.)',
         '(Era qui. Questa era la sua scrivania.)'],
@@ -508,6 +538,8 @@ export class StationScene extends Phaser.Scene {
       bed: ['(Un letto. Qualcuno dormiva qui durante i turni di notte. Una coperta che sa di polvere e di freddo.)'],
       back: ['(La sala controllo è dall\'altra parte.)'],
     };
+    if (id === 'bench' && f.gatewayRestored && !f.routingRestored) return this.openPacketTrace();
+    if (id === 'bench' && f.routingRestored) return this.iris.say(['IRIS: Il banco è libero. Le strade ora funzionano in entrambi i sensi.']);
     if (id === 'fdesk') f.fatherDesk = true;
     this.iris.say(lines[id] ?? ['...']);
     this.save();

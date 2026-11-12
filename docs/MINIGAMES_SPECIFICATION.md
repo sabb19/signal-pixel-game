@@ -37,11 +37,11 @@
 **Indizio:** il gateway era stato cambiato con un valore preciso alle 05:12 → «Non è un errore di battitura.»
 **Da Unity:** `NetworkDefenderGame`, `NetCli`, `ChallengeGen.DefenderSpec`, `NetAddress`.
 
-## 2 — PACKET TRACE · Atto II · Sala server
+## 2 — PACKET TRACE · Atto II · Laboratorio, banco di prova  ✅ implementato
 **Perché:** alcuni sistemi rispondono, altri no. Non è tutta la rete: si interrompe un percorso.
 **IRIS spiega:** i dati viaggiano in pacchetti; ogni router decide il passo successivo leggendo la propria tabella; serve anche la strada di ritorno.
 **Interfaccia:** rappresentazione grafica della rete su un pannello a fosfori, pacchetto animato tappa per tappa, timeline delle tappe, tabella di routing del nodo selezionato.
-**Attività (3 missioni, dal codice Unity):** 1) gateway errato su un host; 2) rotta statica mancante su un router (andata ok, ritorno no); 3) default route sbagliata che manda il traffico verso un nodo sconosciuto.
+**Attività (3 missioni, implementate in `src/minigames/packettrace/`):** rete CONSOLE — R1 — R2 — ANTENNA. 1) R1 non ha la strada verso 10.0.40.0 (guidata: traceroute, usa R1, show ip route, ip route, ping); 2) R2 non ha la strada di ritorno verso 10.0.10.0: andata ok, ritorno no (guidata); 3) verifica: default route di R1 verso NODE-X (10.0.30.99), da togliere con `no ip route` e sostituire.
 **Comandi:** `ping`, `traceroute`, `show ip route`, `ip route <rete> <mask> <next-hop>`.
 **Errori previsti:** correggere il nodo dove il pacchetto si ferma invece di quello che lo ha instradato male; dimenticare il ritorno; route troppo generica.
 **Vittoria:** ping andata e ritorno in ogni missione.

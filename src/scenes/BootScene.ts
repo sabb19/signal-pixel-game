@@ -30,7 +30,15 @@ export class BootScene extends Phaser.Scene {
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
-      if (import.meta.env.DEV && q.has('nd')) {
+      if (import.meta.env.DEV && q.has('pt')) {
+      const m = Phaser.Math.Clamp(Number(q.get('pt')) || 1, 1, 3) - 1;
+      writeSave({ act: 1, flags: { power: true, irisAwake: true, tutorialDone: true, gatewayRestored: true, doorServer: true, ptMission: m }, room: 'lab', x: 350, y: 240 });
+      const mgr = this.game.scene;
+      this.scene.start('station');
+      setTimeout(() => { mgr.pause('station'); mgr.start('packettrace', { mission: m }); }, 600);
+      return;
+    }
+    if (import.meta.env.DEV && q.has('nd')) {
         const m = Phaser.Math.Clamp(Number(q.get('nd')) || 1, 1, 3) - 1;
         writeSave({ act: 1, flags: { power: true, irisAwake: true, tutorialDone: true, ndMission: m }, room: 'control', x: 365, y: 215 });
         const mgr = this.game.scene;
