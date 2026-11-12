@@ -213,8 +213,9 @@ export class NetDefenderScene extends Phaser.Scene {
   }
 
   private onKey(e: KeyboardEvent) {
-    if (this.done) return;
+    // i dialoghi di IRIS devono poter avanzare anche a missione finita
     if (this.iris.open) { if (e.key === 'e' || e.key === 'E' || e.key === ' ' || e.key === 'Enter') this.iris.advance(); return; }
+    if (this.done) return;
     if (this.busy) return;
     if (e.key === 'Escape') return this.exit(false);
     if (this.quiz && /^[sSnN]$/.test(e.key)) return this.answerQuiz(e.key.toLowerCase() === 's');
