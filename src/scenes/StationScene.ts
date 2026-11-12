@@ -5,8 +5,14 @@ import { FONT } from '../core/fonts';
 import { loadSave, writeSave, SaveData } from '../core/save';
 import * as CONTROL from '../world/controlRoom';
 import * as LAB from '../world/lab';
+import * as COMMS from '../world/comms';
 
-const ROOMS = { control: CONTROL, lab: LAB } as const;
+const ROOMS = { control: CONTROL, lab: LAB, comms: COMMS } as const;
+// dove compare Myra entrando in una stanza, a seconda della stanza da cui arriva
+const ENTRIES: Partial<Record<string, { x: number; y: number }>> = {
+  'control>lab': LAB.ENTRY_IMG, 'lab>control': CONTROL.ENTRY_IMG,
+  'lab>comms': COMMS.ENTRY_IMG, 'comms>lab': { x: 1305, y: 455 },
+};
 type RoomId = keyof typeof ROOMS;
 const S = 0.5; // scala comune degli sfondi
 import { Player } from '../actors/Player';
@@ -56,7 +62,7 @@ export class StationScene extends Phaser.Scene {
 
   create() {
     const saved = loadSave();
-    const valid = saved && (saved.room === 'control' || saved.room === 'lab');
+    const valid = saved && saved.room in ROOMS;
     this.state = valid ? saved! : { act: 1, flags: {}, room: 'control', x: 0, y: 0 };
     this.roomId = this.state.room as RoomId;
     this.leaving = false;
@@ -83,7 +89,7 @@ export class StationScene extends Phaser.Scene {
     const isControl = this.roomId === 'control';
     if (isControl && !this.state.flags.doorServer) this.doorZone = block(DOOR_BLOCK);
 
-    if (isControl) this.addScreenFlicker(); else this.addLabFx();
+    if (isControl) this.addScreenFlicker(); else if (this.roomId === 'lab') this.addLabFx(); else this.addCommsFx();
     this.doorLight = this.add.image(1405 * S, 330 * S, 'glow').setScale(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(150).setVisible(isControl);
     LAMPS_IMG.forEach((l) => {
       const g = this.add.image(l.x * S, l.y * S, 'glow').setScale(2.2).setTint(P.lamp).setAlpha(0.18)
@@ -98,7 +104,8 @@ export class StationScene extends Phaser.Scene {
     // spia d'emergenza del quadro elettrico: l'unica luce nel buio, indica dove andare
     this.breakerLed = this.add.image(1055 * S, 150 * S, 'glow').setScale(0.6).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100).setVisible(isControl);
     this.tweens.add({ targets: this.breakerLed, alpha: 0.15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    const start = this.entering ? { x: ENTRY_IMG.x * S, y: ENTRY_IMG.y * S }
+    const start = this.entering && valid ? { x: saved!.x, y: saved!.y }
+      : this.entering ? { x: ENTRY_IMG.x * S, y: ENTRY_IMG.y * S }
       : valid ? { x: saved!.x, y: saved!.y } : { x: SPAWN_IMG.x * S, y: SPAWN_IMG.y * S };
     this.player = new Player(this, start.x, start.y);
     this.physics.add.collider(this.player, this.walls);
@@ -157,6 +164,17 @@ export class StationScene extends Phaser.Scene {
       // partita ripresa dopo aver dato corrente ma prima di svegliare IRIS
       this.tweens.add({ targets: this.consoleBeacon, alpha: 0.45, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       this.time.delayedCall(800, () => this.setTutorial(2));
+    } else if (this.roomId === 'comms' && !this.state.flags.commsVisited) {
+      this.state.flags.commsVisited = true;
+      this.save();
+      this.refreshObjective();
+      this.time.delayedCall(900, () => this.iris.say([
+        '(Qui fa freddo. E le luci sono tutte rosse.)',
+        'IRIS: Sala Comunicazioni. Tutto ciò che va verso l\'antenna passa da questa stanza.',
+        'IRIS: La porta blindata è il filtro della stazione: decide chi può passare e chi no.',
+        'IRIS: È in quarantena. Si apre solo dal suo pannello, e solo se le regole sono giuste.',
+        'MYRA: Il filtro. La parola del nastro.',
+      ]));
     } else if (this.roomId === 'lab' && !this.state.flags.labVisited) {
       this.state.flags.labVisited = true;
       this.save();
@@ -263,8 +281,11 @@ export class StationScene extends Phaser.Scene {
     Audio.click();
     if (this.roomId === 'lab') {
       if (s.id === 'back') return this.goTo('control');
+      if (s.id === 'cdoor') return f.nightDone ? this.goTo('comms')
+        : this.iris.say(['(Una porta di metallo. Dietro, un ronzio di macchine. Chiusa.)', 'IRIS: È la Sala Comunicazioni. Con questa corrente non riesco ad aprirla.']);
       return this.labInteract(s.id);
     }
+    if (this.roomId === 'comms') return this.commsInteract(s.id);
     if (s.id === 'door' && f.doorServer) return this.goTo('lab');
     if (s.id === 'breaker' && !f.power) {
       this.iris.say(['(Leve, fusibili, un interruttore generale. Questo almeno lo so fare.)'], () => this.powerUp());
@@ -327,7 +348,7 @@ export class StationScene extends Phaser.Scene {
   private refreshObjective() {
     const f = this.state.flags;
     let text = '';
-    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored && f.nightStarted && !f.nightDone ? 'Riposati sul letto' : f.routingRestored ? 'Tratto 3 · Filtro: prossimamente' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
+    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored && f.nightStarted && !f.nightDone ? 'Riposati sul letto' : f.firewallRestored ? 'Tratto 4 · Nomi: prossimamente' : f.routingRestored && this.roomId === 'comms' ? 'Tratto 3 · Filtro: usa la porta blindata' : f.routingRestored ? 'Tratto 3 · Filtro: vai nella Sala Comunicazioni (porta a destra nel laboratorio)' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
     this.objective?.setText(text).setVisible(!!text);
   }
 
@@ -409,6 +430,60 @@ export class StationScene extends Phaser.Scene {
         this.save();
         this.time.delayedCall(600, () => this.openPath('repaired', 1));
       });
+    });
+  }
+
+  // ===== SALA COMUNICAZIONI =====
+  private addCommsFx() {
+    // spie degli armadi: rosse e ambrate, ognuna col suo ritmo
+    const leds: [number, number, number][] = [[285, 170, P.red2], [370, 250, P.lamp2], [455, 160, P.red2], [535, 300, P.lamp2], [620, 200, P.red2], [1100, 240, P.red2], [960, 330, P.lamp2]];
+    leds.forEach(([x, y, c], i) => {
+      const g = this.add.image(x * S, y * S, 'glow').setScale(0.5).setTint(c).setAlpha(0.15).setBlendMode(Phaser.BlendModes.ADD).setDepth(150);
+      this.tweens.add({ targets: g, alpha: 0.55, duration: 300 + i * 170, yoyo: true, repeat: -1, repeatDelay: 400 + i * 90 });
+    });
+    // tastierino della porta blindata
+    this.gateLight = this.add.image(842 * S, 262 * S, 'glow').setScale(0.6).setTint(this.state.flags.firewallRestored ? P.phos : P.lamp).setAlpha(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(150);
+    this.tweens.add({ targets: this.gateLight, alpha: 0.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    // portatile della postazione
+    const lap = this.add.image(1355 * S, 410 * S, 'glow').setScale(1.4, 0.9).setTint(P.cyan).setAlpha(0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    this.tweens.add({ targets: lap, alpha: 0.26, duration: 1300, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    // neve oltre la finestra e la luce rossa dell'antenna
+    const snow = this.add.particles(0, 0, 'px', {
+      x: { min: 1210 * S, max: 1520 * S }, y: 30 * S, lifespan: 2400, speedY: { min: 10, max: 18 }, speedX: { min: -4, max: 1 },
+      alpha: { min: 0.4, max: 0.8 }, tint: P.cream2, frequency: 160,
+    }).setDepth(-999);
+    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(1210 * S, 30 * S, 310 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
+    const red = this.add.image(1355 * S, 80 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
+    this.tweens.add({ targets: red, alpha: 0.9, duration: 120, yoyo: true, hold: 200, repeat: -1, repeatDelay: 1600 });
+  }
+  private gateLight?: Phaser.GameObjects.Image;
+
+  private commsInteract(id: string) {
+    const f = this.state.flags;
+    if (id === 'back') return this.goTo('lab');
+    if (id === 'gate' && f.routingRestored && !f.firewallRestored) return this.openMinigame('firewall', 'fwMission');
+    const lines: Record<string, string[]> = {
+      gate: ['(La porta è aperta. Dietro, una scala di ferro sale verso il tetto. E verso l\'antenna.)'],
+      racks: ['(Centinaia di lucine rosse. Ognuna è una porta che qualcuno ha chiuso.)',
+        'IRIS: Ogni servizio della stazione ha un numero, una "porta". Il filtro decide quali numeri possono passare.'],
+      patch: ['(Cavi colorati, uno per uno, con un\'etichetta scritta a mano.)', '(La stessa grafia storta del nastro.)'],
+      desk: f.fatherBadge
+        ? ['(Il badge di papà. Lo lascio dov\'è. Era il suo posto.)']
+        : ['(Un badge appeso al gancio. «KOVALENKO O. · TECNICO DI TURNO».)', '(La foto è sbiadita. Il sorriso no.)', 'MYRA: Era qui anche quella notte.'],
+      crates: ['(Ricambi. Etichette in tre lingue. Su una, a pennarello: «Non aprire fino a primavera».)'],
+    };
+    if (id === 'desk') f.fatherBadge = true;
+    this.iris.say(lines[id] ?? ['...']);
+    this.save();
+  }
+
+  private openMinigame(scene: string, flag: string) {
+    this.save();
+    this.player.setVelocity(0, 0);
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.pause();
+      this.scene.launch(scene, { mission: (this.state.flags as unknown as Record<string, number>)[flag] ?? 0 });
     });
   }
 
@@ -539,6 +614,7 @@ export class StationScene extends Phaser.Scene {
           '(Ho dormito. Per la prima volta da settimane, senza sognare la strada.)',
           'IRIS: Ho già cominciato con il nastro. Per ora ho solo una parola in più: "filtro".',
           'MYRA: Il tratto tre.',
+          'IRIS: Con i generatori carichi posso aprire la porta accanto agli scaffali. Lì c\'è la Sala Comunicazioni.',
         ]);
       });
     });
@@ -619,6 +695,8 @@ export class StationScene extends Phaser.Scene {
     const x = this.player.x / S, y = this.player.y / S;
     if (this.roomId === 'control' && this.state.flags.doorServer && x > 1345 && y > 200 && y < 575) this.goTo('lab');
     if (this.roomId === 'lab' && x < 70 && y > 220 && y < 640) this.goTo('control');
+    if (this.roomId === 'lab' && this.state.flags.nightDone && x > 1268 && y < 440) this.goTo('comms');
+    if (this.roomId === 'comms' && x < 135 && y > 420 && y < 535) this.goTo('lab');
   }
 
   private goTo(room: RoomId) {
@@ -629,7 +707,7 @@ export class StationScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => {
       const first = room === 'lab' && !this.state.flags.labVisited;
       this.state.room = room;
-      const e = ROOMS[room].ENTRY_IMG;
+      const e = ENTRIES[`${this.roomId}>${room}`] ?? ROOMS[room].ENTRY_IMG;
       writeSave({ ...this.state, room, x: e.x * S, y: e.y * S });
       this.scene.restart({ entry: true, firstLab: first });
     });

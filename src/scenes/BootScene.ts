@@ -12,6 +12,7 @@ export class BootScene extends Phaser.Scene {
   preload() {
     this.load.image('room-control', 'assets/rooms/control_room.png');
     this.load.image('room-lab', 'assets/rooms/lab.png');
+    this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
     this.load.image('keyart', 'assets/story/keyart.png');
     ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
@@ -26,7 +27,7 @@ export class BootScene extends Phaser.Scene {
     this.keyPlayer();
     createPlayerAnims(this);
     // lo sfondo è dipinto ad alta risoluzione e mostrato a metà: filtro lineare per ridurlo pulito
-    ['room-control', 'room-lab', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
+    ['room-control', 'room-lab', 'room-comms', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata

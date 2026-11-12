@@ -8,7 +8,8 @@ export const ROOM_H = 864;
 type Rect = [number, number, number, number];
 
 export const BLOCKERS: Rect[] = [
-  [140, 0, 1230, 458],          // parete di fondo e banco di prova
+  [140, 0, 1128, 458],          // parete di fondo e banco di prova
+  [1268, 0, 100, 412],          // porta verso la Sala Comunicazioni (si attraversa dal basso)
   [0, 0, 140, 225],             // parete sinistra sopra la porta
   [0, 640, 135, 224],           // gradino in basso a sinistra
   [0, 710, 210, 154],
@@ -31,6 +32,7 @@ export const SPOTS: { id: string; label: string; x: number; y: number; r: number
   { id: 'board', label: 'Bacheca', x: 1140, y: 490, r: 70 },
   { id: 'window', label: 'Finestra', x: 920, y: 490, r: 70 },
   { id: 'bed', label: 'Letto', x: 1120, y: 640, r: 70 },
+  { id: 'cdoor', label: 'Porta', x: 1310, y: 450, r: 60 },
   { id: 'back', label: 'Sala controllo', x: 90, y: 500, r: 70 },
 ];
 
