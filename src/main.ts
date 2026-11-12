@@ -9,6 +9,16 @@ import { SettingsScene } from './scenes/SettingsScene';
 import { NetDefenderScene } from './minigames/netdefender/NetDefenderScene';
 import { SignalPathScene } from './scenes/SignalPathScene';
 
+// Testi disegnati a risoluzione più alta del gioco (640×360): senza questo, ingranditi,
+// alcune lettere del font pixel si confondono (la M sembrava una N).
+const textFactory = Phaser.GameObjects.GameObjectFactory.prototype as unknown as {
+  text: (x: number, y: number, t: string | string[], style?: Phaser.Types.GameObjects.Text.TextStyle) => Phaser.GameObjects.Text;
+};
+const baseText = textFactory.text;
+textFactory.text = function (this: unknown, x, y, t, style) {
+  return baseText.call(this, x, y, t, { resolution: 3, ...(style ?? {}) });
+};
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
