@@ -10,9 +10,10 @@ type Rect = [number, number, number, number];
 export const BLOCKERS: Rect[] = [
   [140, 0, 1128, 458],          // parete di fondo e banco di prova
   [1268, 0, 100, 412],          // porta verso la Sala Comunicazioni (si attraversa dal basso)
-  [0, 0, 140, 225],             // parete sinistra sopra la porta
-  [0, 640, 135, 224],           // gradino in basso a sinistra
-  [0, 710, 210, 154],
+  [0, 0, 140, 470],             // parete sinistra e stipite: davanti alla porta si sta solo sulla soglia
+  [0, 0, 22, 864],              // bordo sinistro
+  [0, 712, 135, 152],           // gradino in basso a sinistra (sopra resta il passaggio verso la stanza)
+  [0, 722, 210, 142],
   [0, 780, 310, 84],
   [140, 400, 335, 250],         // scrivania del padre e sedia (anche lo spazio dietro)
   [1350, 0, 186, 864],          // scaffali a destra

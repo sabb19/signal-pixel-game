@@ -348,7 +348,7 @@ export class StationScene extends Phaser.Scene {
   private refreshObjective() {
     const f = this.state.flags;
     let text = '';
-    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored && f.nightStarted && !f.nightDone ? 'Riposati sul letto' : f.firewallRestored ? 'Tratto 4 · Nomi: prossimamente' : f.routingRestored && this.roomId === 'comms' ? 'Tratto 3 · Filtro: usa la porta blindata' : f.routingRestored ? 'Tratto 3 · Filtro: vai nella Sala Comunicazioni (porta a destra nel laboratorio)' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
+    if (this.tutStep < 0 && f.irisAwake) text = (!f.gatewayRestored ? 'Tratto 1 · Rete locale: usa la console' : f.routingRestored && f.nightStarted && !f.nightDone ? 'Riposati sul letto' : f.firewallRestored ? 'Tratto 4 · Nomi: prossimamente' : f.routingRestored && this.roomId === 'comms' ? 'Tratto 3 · Filtro: usa la porta blindata' : f.routingRestored ? 'Tratto 3 · Filtro: Sala Comunicazioni (porta a destra)' : this.roomId === 'lab' ? 'Tratto 2 · Strade: usa il banco di prova' : 'Tratto 2 · Strade: vai al laboratorio (porta est)') + '\nM  percorso del segnale';
     this.objective?.setText(text).setVisible(!!text);
   }
 
@@ -716,7 +716,7 @@ export class StationScene extends Phaser.Scene {
     if (this.leaving || this.iris.open || this.paused) return;
     const x = this.player.x / S, y = this.player.y / S;
     if (this.roomId === 'control' && this.state.flags.doorServer && x > 1345 && y > 200 && y < 575) this.goTo('lab');
-    if (this.roomId === 'lab' && x < 70 && y > 220 && y < 640) this.goTo('control');
+    if (this.roomId === 'lab' && x < 62 && y > 460 && y < 712) this.goTo('control');
     if (this.roomId === 'lab' && this.state.flags.nightDone && x > 1268 && y < 440) this.goTo('comms');
     if (this.roomId === 'comms' && x < 135 && y > 420 && y < 535) this.goTo('lab');
   }
