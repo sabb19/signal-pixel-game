@@ -130,7 +130,7 @@ export class StationScene extends Phaser.Scene {
     this.keys.E.on('down', interact);
     this.keys.SPACE.on('down', interact);
     this.keys.ESC.on('down', () => this.togglePause());
-    this.keys.M.on('down', () => { if (!this.paused && !this.iris.open && this.state.flags.irisAwake && this.tutStep < 0) this.openPath('view'); });
+    this.keys.M.on('down', () => { if (this.scene.isActive() && !this.paused && !this.iris.open && this.state.flags.irisAwake && this.tutStep < 0) this.openPath('view'); });
     this.events.off('resume');
     this.events.on('resume', () => { this.input.keyboard!.resetKeys(); });
     this.events.off('minigame-closed');
