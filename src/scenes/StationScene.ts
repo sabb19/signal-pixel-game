@@ -67,7 +67,7 @@ export class StationScene extends Phaser.Scene {
     this.walls = this.physics.add.staticGroup();
 
     // sfondo e ritagli in primo piano (stessa immagine, frame separati, ordinati per profondità)
-    this.add.image(0, 0, KEY).setOrigin(0).setScale(S).setDepth(-1000);
+    this.add.image(0, 0, KEY, '__BASE').setOrigin(0).setScale(S).setDepth(-1000);
     const tex = this.textures.get(KEY);
     OCCLUDERS.forEach((o, i) => {
       const [x, y, w, h] = o.rect;
