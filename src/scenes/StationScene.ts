@@ -293,7 +293,7 @@ export class StationScene extends Phaser.Scene {
       return;
     }
     if (s.id === 'console' && f.power && !f.irisAwake) { this.tutHide(); this.wakeIris(); return; }
-    if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) { this.openNetDefender(); return; }
+    if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) return this.openMinigame('netdefender', 'ndMission');
     if (s.id === 'console' && f.gatewayRestored) return this.offerReplay('netdefender', 'IRIS: La rete locale funziona. Vuoi rifare le prove di configurazione?');
 
     const dark = !f.power;
@@ -515,7 +515,20 @@ export class StationScene extends Phaser.Scene {
     this.save();
   }
 
+  // Se il minigioco era stato lasciato a metà: riprendere o ricominciare
   private openMinigame(scene: string, flag: string) {
+    const flags = this.state.flags as unknown as Record<string, number>;
+    const m = flags[flag] ?? 0;
+    if (m > 0) {
+      return this.iris.choose([`Riprendi dalla missione ${m + 1}`, 'Ricomincia dall\'inizio'], (i) => {
+        if (i === 1) flags[flag] = 0;
+        this.launchMinigame(scene, flag);
+      });
+    }
+    this.launchMinigame(scene, flag);
+  }
+
+  private launchMinigame(scene: string, flag: string) {
     this.save();
     this.player.setVelocity(0, 0);
     this.cameras.main.fadeOut(400, 0, 0, 0);
@@ -791,7 +804,7 @@ export class StationScene extends Phaser.Scene {
     };
     if (id === 'bed' && f.nightStarted && !f.nightDone) return this.nightScene();
     if (id === 'bench' && f.nightStarted && !f.nightDone) return this.iris.say(['IRIS: Il banco è spento. Riposati, Myra. Domani riprendiamo.']);
-    if (id === 'bench' && f.gatewayRestored && !f.routingRestored) return this.openPacketTrace();
+    if (id === 'bench' && f.gatewayRestored && !f.routingRestored) return this.openMinigame('packettrace', 'ptMission');
     if (id === 'bench' && f.routingRestored) return this.offerReplay('packettrace', 'IRIS: Il banco è libero. Le strade funzionano. Vuoi rifare le prove?');
     if (id === 'fdesk') f.fatherDesk = true;
     this.iris.say(lines[id] ?? ['...']);
