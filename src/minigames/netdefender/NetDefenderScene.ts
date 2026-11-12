@@ -14,6 +14,15 @@ import {
 // Ciclo didattico: IRIS spiega → Myra prova → feedback immediato → conseguenza → verifica (missione 3).
 const X0 = 18, Y0 = 34, LW = 214, TX = 244, TW = VIEW_W - TX - 18, TH = 250;
 
+interface GuideStep {
+  text: string;
+  cmd?: string;
+  hl?: string;
+  done?: (event: string, arg: string) => boolean;
+  after?: () => void;
+  quiz?: { answer: 's' | 'n'; right: string[]; wrong: string[] };
+}
+
 export class NetDefenderScene extends Phaser.Scene {
   private missions: Mission[] = [];
   private mi = 0;
@@ -104,30 +113,79 @@ export class NetDefenderScene extends Phaser.Scene {
     this.time.delayedCall(400, () => this.iris.say(this.m.brief, () => { this.busy = false; this.guide(); }));
   }
 
-  // Tutorial della missione 1: passi espliciti, con evidenziazioni sulla scheda e sullo schema.
-  // TAB scrive il comando suggerito. Si avanza solo facendo la cosa giusta.
+  // Guida passo-passo (missioni 1 e 2). La missione 3 è la verifica: nessuna guida, solo H.
+  // Ogni passo dice cosa fare, evidenzia dove guardare, e si completa solo facendo la cosa giusta.
+  // TAB scrive il comando suggerito. Alcuni passi sono domande (S / N).
   private guided = false;
   private guideCmd?: string;
-  private quiz = false;
+  private quiz?: GuideStep;
   private hl!: Phaser.GameObjects.Graphics;
   private guideBox!: Phaser.GameObjects.Text;
 
-  private guide() {
-    if (this.mi !== 0) { this.guided = false; this.guideBox?.setVisible(false); this.goal.setVisible(true); return; }
-    this.guided = true;
-    const steps = [
-      { text: 'Leggiamo la scheda della console. Scrivi  ipconfig  e premi INVIO.', cmd: 'ipconfig', hl: 'prompt' },
-      { text: 'Il gateway 10.0.20.1 è nel quartiere della console (10.0.10.x)?   Premi  S  per sì,  N  per no.', hl: 'gw' },
-      { text: 'Nello schema, il router della sala ha indirizzo 10.0.10.1. Scrivi  set gateway 10.0.10.1', cmd: 'set gateway 10.0.10.1', hl: 'router' },
-      { text: 'Ora verifica che la console raggiunga il router:  ping 10.0.10.1', cmd: 'ping 10.0.10.1', hl: 'prompt' },
+  private steps(): GuideStep[] {
+    if (this.mi === 0) return [
+      { text: 'Leggiamo la scheda della console. Scrivi  ipconfig  e premi INVIO.', cmd: 'ipconfig', hl: 'prompt',
+        done: (e) => e === 'ipconfig', after: () => this.explainCard() },
+      { text: 'Il gateway 10.0.20.1 è nel quartiere della console (10.0.10.x)?   Premi  S  per sì,  N  per no.', hl: 'gw',
+        quiz: { answer: 'n',
+          right: ['IRIS: Esatto. Il gateway è fuori dal quartiere: la console non può nemmeno raggiungerlo.', 'MYRA: Allora devo dirle qual è la porta giusta.'],
+          wrong: ['IRIS: Confronta i primi tre numeri: la console è in 10.0.10, il gateway in 10.0.20. Sono quartieri diversi.', 'IRIS: È come se la porta del tuo condominio fosse in un\'altra via. Riprova.'] } },
+      { text: 'Nello schema, il router della sala ha indirizzo 10.0.10.1. Scrivi  set gateway 10.0.10.1', cmd: 'set gateway 10.0.10.1', hl: 'router',
+        done: () => this.d.gateway === ROUTER_LOCAL },
+      { text: 'Ora verifica che la console raggiunga il router:  ping 10.0.10.1', cmd: 'ping 10.0.10.1', hl: 'prompt',
+        done: (e, a) => e === 'ping-ok' && a === ROUTER_LOCAL },
     ];
+    if (this.mi === 1) return [
+      { text: 'Guarda la scheda di MON-A, il monitor che funziona. Scrivi  ipconfig', cmd: 'ipconfig', hl: 'prompt',
+        done: (e) => e === 'ipconfig' && this.d.name === 'MON-A' },
+      { text: 'Ora passa all\'altro monitor. Scrivi  usa MON-B', cmd: 'usa MON-B', hl: 'prompt',
+        done: () => this.d.name === 'MON-B' },
+      { text: 'Leggi la scheda di MON-B:  ipconfig', cmd: 'ipconfig', hl: 'prompt',
+        done: (e) => e === 'ipconfig' && this.d.name === 'MON-B' },
+      { text: 'La maschera di MON-B (255.255.0.0) è uguale a quella di MON-A (255.255.255.0)?   Premi  S  per sì,  N  per no.', hl: 'mask',
+        quiz: { answer: 'n',
+          right: ['IRIS: Esatto. Con 255.255.0.0 il "quartiere" di MON-B diventa enorme: tutto ciò che inizia con 10.0.', 'IRIS: Vediamo cosa succede quando cerca l\'archivio.'],
+          wrong: ['IRIS: Guarda il terzo numero: 255 per MON-A, 0 per MON-B. Non sono uguali. Riprova.'] } },
+      { text: 'Prova a raggiungere l\'archivio da MON-B:  ping 10.0.20.5', cmd: 'ping 10.0.20.5', hl: 'prompt',
+        done: (e, a) => (e === 'ping-fail' || e === 'ping-ok') && a === ARCHIVE },
+      { text: 'Correggi la maschera di MON-B come quella di MON-A:  set mask 255.255.255.0', cmd: 'set mask 255.255.255.0', hl: 'mask',
+        done: () => this.devs[1].mask === REAL_MASK },
+      { text: 'Riprova:  ping 10.0.20.5  (ora dovrebbe passare dal router)', cmd: 'ping 10.0.20.5', hl: 'router',
+        done: (e, a) => e === 'ping-ok' && a === ARCHIVE && this.d.name === 'MON-B' },
+      { text: 'Ultimo controllo: torna su MON-A e fai lo stesso ping. Scrivi  usa MON-A', cmd: 'usa MON-A', hl: 'prompt',
+        done: () => this.d.name === 'MON-A' },
+      { text: 'Verifica:  ping 10.0.20.5', cmd: 'ping 10.0.20.5', hl: 'prompt',
+        done: (e, a) => e === 'ping-ok' && a === ARCHIVE && this.d.name === 'MON-A' },
+    ];
+    return [];
+  }
+
+  private guide() {
+    const steps = this.steps();
+    if (!steps.length) {
+      this.guided = false;
+      this.highlight('none');
+      this.guideBox.setVisible(this.mi === 2).setText('VERIFICA · questa volta niente guida. Se ti blocchi, premi  H  per un aiuto.');
+      this.goal.setVisible(this.mi !== 2);
+      return;
+    }
+    this.guided = true;
     const st = steps[this.guideStep];
-    if (!st) { this.guideBox.setVisible(false); this.highlight('none'); return; }
+    if (!st) { this.guideBox.setVisible(false); this.highlight('none'); this.goal.setVisible(true); return; }
     this.guideCmd = st.cmd;
-    this.quiz = this.guideStep === 1;
+    this.quiz = st.quiz ? st : undefined;
     this.goal.setVisible(false);
     this.guideBox.setVisible(true).setText(`PASSO ${this.guideStep + 1}/${steps.length}   ${st.text}${st.cmd ? '\n[TAB] scrive il comando per te' : ''}`);
-    this.highlight(st.hl);
+    this.highlight(st.hl ?? 'none');
+  }
+
+  // chiamata dopo ogni azione: se il passo corrente è compiuto, si passa al successivo
+  private guideAfter(event: string, arg = '') {
+    if (!this.guided) return;
+    const st = this.steps()[this.guideStep];
+    if (!st || st.quiz || !st.done?.(event, arg)) return;
+    this.guideStep++;
+    if (st.after) st.after(); else this.time.delayedCall(250, () => this.guide());
   }
 
   private highlight(what: string) {
@@ -144,7 +202,7 @@ export class NetDefenderScene extends Phaser.Scene {
     if (what !== 'none') this.tweens.add({ targets: this.hl, alpha: 0.25, duration: 500, yoyo: true, repeat: -1 });
   }
 
-  // Dopo il primo ipconfig: IRIS legge la scheda riga per riga, evidenziandola
+  // Dopo il primo ipconfig della missione 1: IRIS legge la scheda riga per riga, evidenziandola
   private explainCard() {
     this.busy = true;
     const parts: [string, string][] = [
@@ -153,28 +211,25 @@ export class NetDefenderScene extends Phaser.Scene {
       ['gw', 'IRIS: E questo è il gateway, la porta per uscire dal quartiere: 10.0.20.1. Guarda bene i primi tre numeri.'],
     ];
     const next = (i: number) => {
-      if (i >= parts.length) { this.busy = false; this.guideStep = 1; this.guide(); return; }
+      if (i >= parts.length) { this.busy = false; this.guide(); return; }
       this.highlight(parts[i][0]);
       this.iris.say([parts[i][1]], () => next(i + 1));
     };
-    next(0);
+    this.time.delayedCall(300, () => next(0));
   }
 
   private answerQuiz(yes: boolean) {
-    this.quiz = false;
-    if (yes) {
+    const st = this.quiz!;
+    this.quiz = undefined;
+    const right = (yes ? 's' : 'n') === st.quiz!.answer;
+    if (!right) {
       Audio.error();
-      this.iris.say([
-        'IRIS: Confronta i primi tre numeri: la console è in 10.0.10, il gateway in 10.0.20. Sono quartieri diversi.',
-        'IRIS: È come se la porta del tuo condominio fosse in un\'altra via. Riprova.',
-      ], () => { this.quiz = true; });
+      this.wrong++;
+      this.iris.say(st.quiz!.wrong, () => { this.quiz = st; });
       return;
     }
     Audio.confirm();
-    this.iris.say([
-      'IRIS: Esatto. Il gateway è fuori dal quartiere: la console non può nemmeno raggiungerlo.',
-      'MYRA: Allora devo dirle qual è la porta giusta.',
-    ], () => { this.guideStep = 2; this.guide(); });
+    this.iris.say(st.quiz!.right, () => { this.guideStep++; this.guide(); });
   }
 
   // --- Terminale
@@ -238,7 +293,7 @@ export class NetDefenderScene extends Phaser.Scene {
         this.print('ipconfig                mostra la scheda di rete\nset ip|mask|gateway X    cambia un valore\nping X                  prova a raggiungere un indirizzo\nusa NOME                cambia dispositivo' +
           (this.mi === 2 ? '\ndiagnosi configurazione|collegamento' : '') + '\npulisci                 svuota lo schermo', P.cyan1);
         break;
-      case 'ipconfig': this.ipconfig(); if (this.guided && this.guideStep === 0) this.time.delayedCall(300, () => this.explainCard()); break;
+      case 'ipconfig': this.ipconfig(); this.guideAfter('ipconfig'); break;
       case 'set': this.set(args[0], args[1] ?? ''); break;
       case 'ping': this.doPing(arg); break;
       case 'usa': this.use(arg); break;
@@ -282,7 +337,7 @@ export class NetDefenderScene extends Phaser.Scene {
     (this.d as unknown as Record<string, string>)[f] = value;
     Audio.confirm();
     this.print(`${f === 'mask' ? 'Maschera' : f === 'ip' ? 'Indirizzo' : 'Gateway'} aggiornato: ${value}`, P.phos);
-    if (this.guided && this.guideStep === 2 && f === 'gateway' && value === ROUTER_LOCAL) { this.guideStep = 3; this.guide(); }
+    this.guideAfter('set');
   }
 
   private use(name: string) {
@@ -291,6 +346,8 @@ export class NetDefenderScene extends Phaser.Scene {
     this.cur = i;
     Audio.click();
     this.print(`Ora sei su ${this.d.name}.`, P.cyan1);
+    this.refresh();
+    this.guideAfter('usa');
   }
 
   private diagnose(what: string) {
@@ -332,9 +389,10 @@ export class NetDefenderScene extends Phaser.Scene {
       r.lines.forEach((l, i) => this.time.delayedCall(i * 120, () => this.print(l, i === 0 ? P.cream : r.ok ? P.phos : P.red2)));
       this.time.delayedCall(r.lines.length * 120 + 100, () => {
         this.busy = false;
-        if (r.ok) { Audio.confirm(); this.pinged.add(`${this.d.name}>${target}`); this.checkDone(); return; }
+        if (r.ok) { Audio.confirm(); this.pinged.add(`${this.d.name}>${target}`); this.guideAfter('ping-ok', target); this.checkDone(); return; }
         Audio.error();
         this.explainFailure(r.reason);
+        this.guideAfter('ping-fail', target);
       });
     });
   }
