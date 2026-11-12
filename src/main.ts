@@ -7,6 +7,7 @@ import { TitleScene } from './scenes/TitleScene';
 import { IntroScene } from './scenes/IntroScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { NetDefenderScene } from './minigames/netdefender/NetDefenderScene';
+import { FirewallScene } from './minigames/firewall/FirewallScene';
 import { PacketTraceScene } from './minigames/packettrace/PacketTraceScene';
 import { SignalPathScene } from './scenes/SignalPathScene';
 
@@ -30,7 +31,7 @@ const game = new Phaser.Game({
   roundPixels: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   physics: { default: 'arcade', arcade: { debug: DEBUG } },
-  scene: [BootScene, TitleScene, IntroScene, StationScene, SettingsScene, NetDefenderScene, SignalPathScene, PacketTraceScene],
+  scene: [BootScene, TitleScene, IntroScene, StationScene, SettingsScene, NetDefenderScene, SignalPathScene, PacketTraceScene, FirewallScene],
 });
 
 if (DEBUG) (window as unknown as { signal: Phaser.Game }).signal = game;

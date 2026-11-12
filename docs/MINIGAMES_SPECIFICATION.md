@@ -49,10 +49,11 @@
 **Indizio:** la default route manomessa puntava a un nodo `NODE-X` non presente nell'inventario.
 **Da Unity:** `PacketTraceGame`, `NetworkSimulator`, `RouteEntry`, `TraceHop/TraceResult`, `TopologyView`.
 
-## 3 — FIREWALL ARCHITECT · Atto II · Centro comunicazioni
+## 3 — FIREWALL ARCHITECT · Atto II · Sala Comunicazioni, porta blindata  ✅ implementato
 **Perché:** servizi legittimi bloccati, mentre traffico verso `NODE-X` passa ancora.
 **IRIS spiega:** il firewall legge le regole dall'alto, vince la prima che corrisponde, in fondo c'è "nega tutto"; TCP vs UDP; porte come "sportelli" dei servizi.
 **Interfaccia:** pannello di regole a cartellini metallici (sorgente, destinazione, protocollo, porta, ALLOW/DENY) da riordinare; lista requisiti con spie; simulatore di traffico con log "quale regola ha deciso".
+**Implementazione (`src/minigames/firewall/`):** pannello di cartellini, senza terminale: ↑↓ scegli, INVIO prendi/posa, A azione, P protocollo, D destinazione, SPAZIO prova; registro "quale regola ha deciso"; "blocca tutto" fisso in fondo.
 **Attività:** 1) rendere verdi i requisiti (telemetria UDP, console HTTPS, DNS); 2) una regola troppo larga sopra una specifica: riordinare; 3) (verifica) traffico di prova nuovo che i requisiti non coprivano: trovare la regola che lo lascia passare.
 **Errori previsti:** ALLOW any in alto; porta giusta ma protocollo sbagliato; bloccare il DNS e rompere tutto.
 **Vittoria:** tutti i requisiti verdi e nessun traffico verso `NODE-X` consentito.

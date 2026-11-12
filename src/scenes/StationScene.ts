@@ -393,6 +393,7 @@ export class StationScene extends Phaser.Scene {
   private onMinigameClosed(r: { id: string; completed: boolean; mission: number }) {
     this.cameras.main.fadeIn(500, 0, 0, 0);
     if (r.id === 'packettrace') return this.onPacketTraceClosed(r);
+    if (r.id === 'firewall') return this.onFirewallClosed(r);
     (this.state.flags as unknown as Record<string, number>).ndMission = r.completed ? 0 : r.mission;
     if (!r.completed) { this.save(); return; }
     this.state.flags.gatewayRestored = true;
@@ -410,6 +411,27 @@ export class StationScene extends Phaser.Scene {
         this.refreshObjective();
         this.save();
         this.time.delayedCall(900, () => this.openPath('repaired', 0));
+      });
+    });
+  }
+
+  private onFirewallClosed(r: { completed: boolean; mission: number }) {
+    (this.state.flags as unknown as Record<string, number>).fwMission = r.completed ? 0 : r.mission;
+    if (!r.completed) { this.save(); return; }
+    this.state.flags.firewallRestored = true;
+    this.save();
+    this.time.delayedCall(700, () => {
+      Audio.power(); Audio.door();
+      this.cameras.main.flash(250, 63, 167, 181);
+      this.gateLight?.setTint(P.phos);
+      this.iris.say([
+        'IRIS: Filtro ripristinato. La quarantena è finita: la porta blindata si è aperta.',
+        'IRIS: Dietro c\'è la scala per il tetto. E per l\'antenna.',
+        '(Le luci rosse, una dopo l\'altra, smettono di lampeggiare.)',
+      ], () => {
+        this.refreshObjective();
+        this.save();
+        this.time.delayedCall(600, () => this.openPath('repaired', 2));
       });
     });
   }
