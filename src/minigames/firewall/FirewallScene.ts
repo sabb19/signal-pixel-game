@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { gameFrame, Frame, UI } from '../../ui/gameFrame';
 import { VIEW_W, VIEW_H } from '../../core/config';
 import { P, hex } from '../../core/palette';
 import { FONT, FONT_TITLE } from '../../core/fonts';
@@ -50,17 +51,11 @@ export class FirewallScene extends Phaser.Scene {
   }
 
   create() {
-    const g = this.add.graphics();
-    g.fillStyle(0x05080c).fillRect(0, 0, VIEW_W, VIEW_H);
-    g.fillStyle(P.metal0).fillRect(4, 4, VIEW_W - 8, VIEW_H - 8);
-    g.fillStyle(0x0d0b0a).fillRect(10, 26, VIEW_W - 20, VIEW_H - 36);
-    this.header = this.add.text(X0, 10, '', { fontFamily: FONT_TITLE, fontSize: '11px', color: hex(P.lamp2) });
-    this.add.text(VIEW_W - 18, 10, 'H aiuto · Esc esci', { fontFamily: FONT, fontSize: '14px', color: hex(P.metal2) }).setOrigin(1, 0);
+    this.frame = gameFrame(this, [['SPAZIO', 'PROVA'], ['H', 'AIUTO'], ['ESC', 'ESCI']]);
+    this.header = this.add.text(-500, -500, '');
     this.board = this.add.graphics();
     this.hl = this.add.graphics().setDepth(200);
     this.guideBox = this.add.text(X0, 300, '', { fontFamily: FONT, fontSize: '15px', color: hex(P.lamp2), wordWrap: { width: VIEW_W - 36 }, lineSpacing: -2 });
-    const s = this.add.graphics().setDepth(5000);
-    for (let y = 26; y < VIEW_H - 10; y += 2) s.fillStyle(0x000000, 0.12).fillRect(10, y, VIEW_W - 20, 1);
     this.iris = new IrisDialog(this);
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => this.onKey(e));
     this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -74,7 +69,7 @@ export class FirewallScene extends Phaser.Scene {
     this.rules = cloneRules(this.m.rules);
     this.sel = 0; this.grabbed = false; this.tested = false; this.last = [];
     this.hintLevel = 0; this.wrong = 0; this.guideStep = 0;
-    this.header.setText(`FIREWALL ARCHITECT · ${this.mi + 1}/${this.missions.length} · ${this.m.title}`);
+    this.frame.setTitle(`PORTA BLINDATA · FILTRO · MISSIONE ${this.mi + 1}/${this.missions.length}`, this.m.title);
     this.draw();
     this.busy = true;
     this.time.delayedCall(400, () => this.iris.say(this.m.brief, () => { this.busy = false; this.guide(); }));
@@ -278,7 +273,7 @@ export class FirewallScene extends Phaser.Scene {
       this.texts.push(this.add.text(x, y, t, { fontFamily: FONT, fontSize: `${size}px`, color: hex(c) }).setOrigin(origin, 0));
 
     // pannello delle regole
-    g.fillStyle(0x1a1512).fillRect(X0, Y0, RW, RH).lineStyle(1, P.lamp0).strokeRect(X0 + 0.5, Y0 + 0.5, RW, RH);
+    g.fillStyle(UI.panel, 0.96).fillRoundedRect(X0, Y0, RW, RH, 5).lineStyle(1, UI.gold, 0.8).strokeRoundedRect(X0 + 0.5, Y0 + 0.5, RW, RH, 5);
     txt(X0 + 6, Y0 + 3, 'REGOLE DEL FILTRO · si leggono dall\'alto ↓', P.lamp, 13);
     txt(X0 + 34, Y0 + 16, 'AZIONE      PROTO   PORTA   DESTINAZIONE', P.metal2, 12);
     this.rules.forEach((r, i) => {
@@ -296,7 +291,7 @@ export class FirewallScene extends Phaser.Scene {
     txt(X0 + 6, Y0 + RH - 32, '↑↓ scegli   INVIO prendi/posa   A azione\nP protocollo   D destinazione   SPAZIO prova', P.metal2, 12);
 
     // requisiti e registro
-    g.fillStyle(0x0e1414).fillRect(QX, Y0, QW, RH + 58).lineStyle(1, P.cyan1).strokeRect(QX + 0.5, Y0 + 0.5, QW, RH + 58);
+    g.fillStyle(UI.panel, 0.96).fillRoundedRect(QX, Y0, QW, RH + 58, 5).lineStyle(1, UI.cyan, 0.8).strokeRoundedRect(QX + 0.5, Y0 + 0.5, QW, RH + 58, 5);
     txt(QX + 6, Y0 + 3, this.tested ? 'REGISTRO DI PROVA' : 'REQUISITI · SPAZIO per provare', P.cyan1, 13);
     this.m.reqs.forEach((q, i) => {
       const y = Y0 + 22 + i * 44;
@@ -312,5 +307,6 @@ export class FirewallScene extends Phaser.Scene {
     if (this.flashText) txt(X0, Y0 + RH + 8, this.flashText, P.red2, 14);
   }
 
-  update(_t: number, dt: number) { this.iris.update(dt); }
+  private frame!: Frame;
+  update(_t: number, dt: number) { this.iris.update(dt); this.frame?.tick(); }
 }

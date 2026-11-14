@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { gameFrame, panel, Frame, UI } from '../../ui/gameFrame';
 import { VIEW_W, VIEW_H } from '../../core/config';
 import { P, hex } from '../../core/palette';
 import { FONT, FONT_TITLE } from '../../core/fonts';
@@ -64,8 +65,7 @@ export class PacketTraceScene extends Phaser.Scene {
 
   create() {
     this.drawFrame();
-    this.header = this.add.text(X0, 10, '', { fontFamily: FONT_TITLE, fontSize: '11px', color: hex(P.cyan3) });
-    this.add.text(VIEW_W - 18, 10, 'H aiuto · Esc esci', { fontFamily: FONT, fontSize: '14px', color: hex(P.metal2) }).setOrigin(1, 0);
+    this.header = this.add.text(-500, -500, '');
     this.cardTitle = this.add.text(X0 + 6, Y0 + 3, '', { fontFamily: FONT, fontSize: '13px', color: hex(P.cyan1) });
     this.cardText = this.add.text(X0 + 8, Y0 + 20, '', { fontFamily: FONT, fontSize: '15px', color: hex(P.cream2), lineSpacing: -2 });
     this.diagram = this.add.graphics();
@@ -81,19 +81,13 @@ export class PacketTraceScene extends Phaser.Scene {
     this.startMission();
   }
 
+  private frame!: Frame;
   private drawFrame() {
+    this.frame = gameFrame(this);
     const g = this.add.graphics();
-    g.fillStyle(0x05080c).fillRect(0, 0, VIEW_W, VIEW_H);
-    g.fillStyle(P.metal0).fillRect(4, 4, VIEW_W - 8, VIEW_H - 8);
-    g.fillStyle(P.night0).fillRect(10, 26, VIEW_W - 20, VIEW_H - 36);
-    g.fillStyle(P.petrol0).fillRect(X0, Y0, LW, 112).lineStyle(1, P.cyan1).strokeRect(X0 + 0.5, Y0 + 0.5, LW, 112);
-    g.fillStyle(P.petrol0).fillRect(X0, Y0 + 120, LW, TH - 120).lineStyle(1, P.cyan1).strokeRect(X0 + 0.5, Y0 + 120.5, LW, TH - 120);
-    g.fillStyle(0x071214).fillRect(TX, Y0, TW, TH).lineStyle(1, P.cyan1).strokeRect(TX + 0.5, Y0 + 0.5, TW, TH);
-    this.add.text(X0 + 6, Y0 + 123, 'BANCO DI PROVA · IL PERCORSO', { fontFamily: FONT, fontSize: '13px', color: hex(P.cyan1) });
-    const s = this.add.graphics().setDepth(5000);
-    for (let y = 26; y < VIEW_H - 10; y += 2) s.fillStyle(0x000000, 0.12).fillRect(10, y, VIEW_W - 20, 1);
-    const glow = this.add.image(VIEW_W / 2, VIEW_H / 2, 'glow').setScale(9, 6).setTint(P.phos).setAlpha(0.035).setBlendMode(Phaser.BlendModes.ADD).setDepth(5001);
-    this.tweens.add({ targets: glow, alpha: 0.055, duration: 90, yoyo: true, repeat: -1, repeatDelay: 2800 });
+    panel(this, g, X0, Y0, LW, 112);
+    panel(this, g, X0, Y0 + 120, LW, TH - 120, 'BANCO DI PROVA · IL PERCORSO');
+    panel(this, g, TX, Y0, TW, TH, '', UI.cyan, 0x070b0f);
   }
 
   private get m() { return this.missions[this.mi]; }
@@ -105,7 +99,7 @@ export class PacketTraceScene extends Phaser.Scene {
     this.hintLevel = 0; this.wrong = 0; this.guideStep = 0;
     this.lines = [];
     this.marks.clear();
-    this.header.setText(`PACKET TRACE · ${this.mi + 1}/${this.missions.length} · ${this.m.title}`);
+    this.frame.setTitle(`BANCO DI PROVA · MISSIONE ${this.mi + 1}/${this.missions.length}`, this.m.title);
     this.goal.setText('Obiettivo: ' + this.m.goal);
     this.print('I.R.I.S. banco di prova · rete isolata', P.cyan1);
     this.print('Scrivi  aiuto  per i comandi.', P.cyan1);
@@ -498,6 +492,7 @@ export class PacketTraceScene extends Phaser.Scene {
   }
 
   update(_t: number, dt: number) {
+    this.frame?.tick();
     this.iris.update(dt);
     if (!this.iris.open && !this.busy) this.renderTerm();
   }
