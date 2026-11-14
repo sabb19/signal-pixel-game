@@ -19,8 +19,21 @@ const textFactory = Phaser.GameObjects.GameObjectFactory.prototype as unknown as
   text: (x: number, y: number, t: string | string[], style?: Phaser.Types.GameObjects.Text.TextStyle) => Phaser.GameObjects.Text;
 };
 const baseText = textFactory.text;
+// Stile illustrato: i font pixel (VT323, Silkscreen) diventano font morbidi e leggibili,
+// con la dimensione riproporzionata, così nessuna schermata va riscritta.
+const SWAP: [string, string, number, string?][] = [
+  ['VT323', 'Inter, "Helvetica Neue", Arial, sans-serif', 0.74],
+  ['Silkscreen', '"Josefin Sans", Inter, sans-serif', 1.0, '700'],
+];
+function soften(style: Phaser.Types.GameObjects.Text.TextStyle = {}) {
+  const fam = String(style.fontFamily ?? '');
+  const rule = SWAP.find(([from]) => fam.includes(from));
+  if (!rule) return style;
+  const size = parseFloat(String(style.fontSize ?? '16'));
+  return { ...style, fontFamily: rule[1], fontSize: `${Math.round(size * rule[2] * 10) / 10}px`, ...(rule[3] ? { fontStyle: rule[3] } : {}) };
+}
 textFactory.text = function (this: unknown, x, y, t, style) {
-  return baseText.call(this, x, y, t, { resolution: 3, ...(style ?? {}) });
+  return baseText.call(this, x, y, t, { resolution: 3, ...soften(style ?? {}) });
 };
 
 const game = new Phaser.Game({

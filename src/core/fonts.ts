@@ -7,6 +7,6 @@ export const FONT_UI = 'Inter, "Helvetica Neue", Arial, sans-serif';
 
 export async function loadFonts() {
   try {
-    await Promise.all([document.fonts.load('16px VT323'), document.fonts.load('16px Silkscreen'), document.fonts.load('bold 16px Silkscreen'), document.fonts.load('16px "JetBrains Mono"'), document.fonts.load('600 16px Inter')]);
+    await Promise.all([document.fonts.load('16px VT323'), document.fonts.load('16px Silkscreen'), document.fonts.load('bold 16px Silkscreen'), document.fonts.load('16px "JetBrains Mono"'), document.fonts.load('600 16px Inter'), document.fonts.load('16px Inter'), document.fonts.load('700 16px "Josefin Sans"')]);
   } catch { /* senza rete restano i font di sistema */ }
 }
