@@ -241,14 +241,14 @@ export class IntroScene extends Phaser.Scene {
       });
     }
     if (fx.includes('radio')) {
-      const p = this.at(img, 0.17, 0.52);
+      const p = this.at(img, 0.1, 0.62);
       const glow = this.add.image(p.x, p.y, 'glow').setScale(6).setTint(P.lamp).setAlpha(0.12).setBlendMode(Phaser.BlendModes.ADD);
       cam.add(glow);
       this.tweens.add({ targets: glow, alpha: 0.28, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     }
     if (fx.includes('phone')) {
       // inserto: il messaggio della madre compare sullo schermo del telefono
-      const p = this.at(img, 0.49, 0.47);
+      const p = this.at(img, 0.5, 0.48);
       const glow = this.add.image(p.x, p.y, 'glow').setScale(5, 4).setTint(P.cyan).setAlpha(0.1).setBlendMode(Phaser.BlendModes.ADD);
       const bubble = this.add.graphics();
       bubble.fillStyle(P.cream2, 0.95).fillRoundedRect(p.x - 96, p.y - 44, 192, 78, 10);
@@ -269,10 +269,10 @@ export class IntroScene extends Phaser.Scene {
     }
     if (fx.includes('map')) {
       // inserto: il cerchio a matita si disegna intorno all'antenna sulla mappa
-      const c = this.at(img, 0.585, 0.33);
+      const c = this.at(img, 0.66, 0.28);
       const pencil = this.add.graphics();
       cam.add(pencil);
-      const tp = this.at(img, 0.8, 0.1);
+      const tp = this.at(img, 0.82, 0.08);
       const torch = this.add.image(tp.x, tp.y, 'glow').setScale(9).setTint(P.lamp2).setAlpha(0.08).setBlendMode(Phaser.BlendModes.ADD);
       cam.add(torch);
       this.tweens.add({ targets: torch, alpha: 0.14, duration: 1800, yoyo: true, repeat: -1 });
@@ -305,7 +305,7 @@ export class IntroScene extends Phaser.Scene {
       this.tweens.add({ targets: g, alpha: { from: 0.1, to: 0.22 }, duration: 120, yoyo: true, repeat: -1, repeatDelay: 2400 });
     }
     if (fx.includes('redlight')) {
-      const p = this.at(img, 0.547, 0.255);
+      const p = this.at(img, 0.605, 0.075);
       const r = this.add.image(p.x, p.y, 'glow').setScale(1.4).setTint(P.red2).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
       cam.add(r);
       this.tweens.add({ targets: r, alpha: 0.9, duration: 160, yoyo: true, hold: 260, repeat: -1, repeatDelay: 1500 });
