@@ -17,6 +17,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image('room-lab', 'assets/rooms/lab.png');
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
+    // cinematic in pixel art
+    ['station_bg', 'crowd_strip', 'myra_reach', 'mother_sheet', 'crowd_sheet'].forEach((k) => this.load.image(`cine-${k}`, `assets/cine/${k}.png`));
     this.load.image('keyart', 'assets/story/keyart.png');
     ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
     // barra di caricamento
@@ -28,13 +30,15 @@ export class BootScene extends Phaser.Scene {
     makePlaceholders(this); // luce e texture di servizio
     makeEnvironment(this);
     this.keyPlayer();
+    this.keyCine();
     createPlayerAnims(this);
     // lo sfondo è dipinto ad alta risoluzione e mostrato a metà: filtro lineare per ridurlo pulito
     ['room-control', 'room-lab', 'room-comms', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
-      if (q.has('reel')) { this.scene.start('intro', { reel: q.get('reel') }); return; }
+      if (q.has('cine')) { this.scene.start('cine', {}); return; }
+    if (q.has('reel')) { this.scene.start('intro', { reel: q.get('reel') }); return; }
     if (q.has('tracer')) { this.scene.start('tracerhub'); return; }
     if (import.meta.env.DEV && q.has('fw')) {
       const m = Phaser.Math.Clamp(Number(q.get('fw')) || 1, 1, 3) - 1;
@@ -63,6 +67,33 @@ export class BootScene extends Phaser.Scene {
       }
       this.scene.start(q.has('skip') ? 'station' : 'title');
     });
+  }
+
+  // sprite delle cinematic: fondo magenta → trasparente, poi i fotogrammi
+  private keyMagenta(src: string, dst: string) {
+    const img = this.textures.get(src).getSourceImage() as HTMLImageElement;
+    const tex = this.textures.createCanvas(dst, img.width, img.height)!;
+    const ctx = tex.getContext();
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, img.width, img.height), d = data.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (r > 140 && b > 140 && g < 110 && Math.abs(r - b) < 90) d[i + 3] = 0;
+    }
+    ctx.putImageData(data, 0, 0);
+    tex.refresh();
+    return tex;
+  }
+
+  private keyCine() {
+    const mother = this.keyMagenta('cine-mother_sheet', 'mother');
+    ['down', 'left', 'right', 'up'].forEach((dir, c) => { mother.add(`${dir}-0`, 0, c * 384, 0, 384, 432); mother.add(`${dir}-1`, 0, c * 384, 432, 384, 432); });
+    const crowd = this.keyMagenta('cine-crowd_sheet', 'crowd');
+    for (let c = 0; c < 4; c++) { crowd.add(`p${c}-0`, 0, c * 384, 0, 384, 432); crowd.add(`p${c}-1`, 0, c * 384, 432, 384, 432); }
+    this.keyMagenta('cine-crowd_strip', 'crowdstrip');
+    this.keyMagenta('cine-myra_reach', 'myrareach');
+    for (let c = 0; c < 4; c++) this.anims.create({ key: `crowd-walk-${c}`, frames: [{ key: 'crowd', frame: `p${c}-0` }, { key: 'crowd', frame: `p${c}-1` }], frameRate: 4, repeat: -1 });
+    this.anims.create({ key: 'mother-walk-right', frames: [{ key: 'mother', frame: 'right-1' }, { key: 'mother', frame: 'right-0' }], frameRate: 4, repeat: -1 });
   }
 
   private keyPlayer() {

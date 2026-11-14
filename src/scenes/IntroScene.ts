@@ -31,12 +31,10 @@ const SHOTS: Shot[] = [
     ],
   },
   {
-    key: 'c7_crowd', fx: ['snow'],
-    from: { x: 0.42, y: 0.55, s: 1.08 }, to: { x: 0.6, y: 0.5, s: 1.22 },
-    lines: [
-      'Il giorno dell\'evacuazione la stazione dei treni era un mare di persone.',
-      'Le ho lasciato la mano per un secondo. Un secondo solo.',
-    ],
+    // la stazione: cinematic animata nel motore (CineStationScene), non una tavola
+    key: '@cine', fx: [],
+    from: { x: 0.5, y: 0.5, s: 1 }, to: { x: 0.5, y: 0.5, s: 1 },
+    lines: [],
   },
   {
     key: 'c2_phone', fx: ['snow', 'phone'],
@@ -143,10 +141,11 @@ export class IntroScene extends Phaser.Scene {
 
   private reel = 'prologue';
   private shots: Shot[] = SHOTS;
-  init(data: { reel?: string }) { this.reel = data?.reel ?? 'prologue'; this.shots = REELS[this.reel] ?? SHOTS; }
+  private from = 0;
+  init(data: { reel?: string; from?: number }) { this.reel = data?.reel ?? 'prologue'; this.shots = REELS[this.reel] ?? SHOTS; this.from = data?.from ?? 0; }
 
   create() {
-    this.idx = -1; this.leaving = false; this.layers = [];
+    this.idx = this.from - 1; this.leaving = false; this.layers = [];
     Audio.setMusic('theme');
     const barTop = this.add.rectangle(0, -40, VIEW_W, 40, 0x000000).setOrigin(0).setDepth(10);
     const barBot = this.add.rectangle(0, VIEW_H, VIEW_W, 68, 0x000000).setOrigin(0).setDepth(10);
@@ -174,6 +173,11 @@ export class IntroScene extends Phaser.Scene {
     this.idx++;
     if (this.idx >= this.shots.length) return this.finish();
     const shot = this.shots[this.idx];
+    if (shot.key === '@cine') {
+      this.cameras.main.fadeOut(600, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('cine', { next: { reel: this.reel, from: this.idx + 1 } }));
+      return;
+    }
     this.busy = true;
     Audio.bed('wind', shot.sound === 'wind', 0.6);
 

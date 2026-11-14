@@ -91,6 +91,59 @@ class AudioManager {
     o.connect(g).connect(this.fx!); o.start(t); o.stop(t + dur + 0.02);
   }
 
+  // --- Suoni delle cinematic (tutti sintetizzati)
+  private noiseBurst(dur: number, freq: number, q: number, vol: number, type: BiquadFilterType = 'lowpass') {
+    if (!this.ctx || !this.fx) return;
+    const c = this.ctx, t = c.currentTime;
+    const n = c.createBufferSource(); n.buffer = this.noiseBuffer();
+    const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = c.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f).connect(g).connect(this.fx); n.start(t); n.stop(t + dur + 0.05);
+  }
+  rumble() { this.noiseBurst(2.8, 120, 0.7, 0.9); this.tone(38, 2.2, 'sine', 0.25, 26); }       // esplosione lontana
+  whistle() {                                                                                       // fischio del treno
+    if (!this.ctx || !this.fx) return;
+    const c = this.ctx, t = c.currentTime;
+    [523, 659, 784].forEach((f) => {
+      const o = c.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.linearRampToValueAtTime(f, t + 0.25);
+      const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 0.15); g.gain.setValueAtTime(0.035, t + 1.4); g.gain.linearRampToValueAtTime(0, t + 1.9);
+      o.connect(g).connect(this.fx!); o.start(t); o.stop(t + 2);
+    });
+    this.noiseBurst(1.8, 2500, 2, 0.05, 'bandpass');
+  }
+  siren(dur = 6) {                                                                                  // sirena lontana
+    if (!this.ctx || !this.amb) return;
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.35; const lg = c.createGain(); lg.gain.value = 180;
+    o.frequency.value = 620; lfo.connect(lg).connect(o.frequency);
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.025, t + 1.5); g.gain.setValueAtTime(0.025, t + dur - 1.5); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(f).connect(g).connect(this.amb); o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+  }
+  heartbeat(times = 4, gap = 0.9) {                                                                 // battito (rallentatore)
+    for (let i = 0; i < times; i++) setTimeout(() => { this.tone(58, 0.16, 'sine', 0.35, 40); setTimeout(() => this.tone(52, 0.2, 'sine', 0.25, 36), 180); }, i * gap * 1000);
+  }
+  private crowdNode?: { g: GainNode; stop: () => void };
+  crowd(on: boolean, level = 1) {                                                                   // brusio della folla
+    if (!this.ctx || !this.amb) return;
+    const c = this.ctx, now = c.currentTime;
+    if (!on) { const n = this.crowdNode; if (n) { n.g.gain.linearRampToValueAtTime(0, now + 1.2); setTimeout(n.stop, 1300); this.crowdNode = undefined; } return; }
+    if (this.crowdNode) { this.crowdNode.g.gain.linearRampToValueAtTime(0.16 * level, now + 0.6); return; }
+    const g = c.createGain(); g.gain.value = 0; g.connect(this.amb);
+    const nodes: AudioScheduledSourceNode[] = [];
+    [380, 760, 1300].forEach((fq, i) => {
+      const n = c.createBufferSource(); n.buffer = this.noiseBuffer(); n.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = fq; f.Q.value = 1.2;
+      const lfo = c.createOscillator(); lfo.frequency.value = 0.6 + i * 0.37; const lg = c.createGain(); lg.gain.value = fq * 0.3;
+      lfo.connect(lg).connect(f.frequency);
+      const gg = c.createGain(); gg.gain.value = [0.6, 0.35, 0.15][i];
+      n.connect(f).connect(gg).connect(g); n.start(); lfo.start(); nodes.push(n, lfo);
+    });
+    g.gain.linearRampToValueAtTime(0.16 * level, now + 1.5);
+    this.crowdNode = { g, stop: () => nodes.forEach((x) => { try { x.stop(); } catch { /* */ } }) };
+  }
+
   // musica: 'theme' (titolo, cutscene), 'station' (gioco), 'off'
   setMusic(mood: Mood) { this.wantMood = mood; this.music?.setMood(mood); }
 
