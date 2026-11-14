@@ -31,10 +31,18 @@ const SHOTS: Shot[] = [
     ],
   },
   {
+    key: 'c7_crowd', fx: ['snow'],
+    from: { x: 0.42, y: 0.55, s: 1.08 }, to: { x: 0.6, y: 0.5, s: 1.22 },
+    lines: [
+      'Il giorno dell\'evacuazione la stazione dei treni era un mare di persone.',
+      'Le ho lasciato la mano per un secondo. Un secondo solo.',
+    ],
+  },
+  {
     key: 'c2_phone', fx: ['snow', 'phone'],
     from: { x: 0.5, y: 0.4, s: 1.1 }, to: { x: 0.48, y: 0.5, s: 1.35 },
     lines: [
-      'Il giorno dell\'evacuazione io e mia madre ci siamo perse tra la folla della stazione.',
+      'Quando mi sono girata, non c\'era più.',
       'Il suo ultimo messaggio è arrivato alle 4:12. Poi la rete è morta.',
       '«Se ci perdiamo, cerca un segnale. Io ascolterò.»',
     ],
@@ -81,6 +89,42 @@ const SHOTS: Shot[] = [
   },
 ];
 
+// SILENCE si mostra (capitolo 2) ed epilogo: stesse regole di regia del prologo
+const SILENCE: Shot[] = [
+  {
+    key: 'c8_silence', fx: ['static'],
+    from: { x: 0.5, y: 0.45, s: 1.2 }, to: { x: 0.5, y: 0.5, s: 1.04 },
+    lines: [
+      'Uno dopo l\'altro, tutti gli schermi della sala sono diventati grigi.',
+      '«[SILENCE] Trasmissione non autorizzata. Nessuno trasmette.»',
+      'Una linea piatta. Senza rabbia, senza fretta. Solo un ordine eseguito.',
+      'IRIS tremava, in un angolo dello schermo. E io ho capito che aveva paura. Quindi poteva averne anche lui.',
+    ],
+  },
+];
+const EPILOGUE: Shot[] = [
+  {
+    key: 'c9_mic', fx: [],
+    from: { x: 0.4, y: 0.5, s: 1.04 }, to: { x: 0.35, y: 0.5, s: 1.2 },
+    lines: [
+      '«Qui Myra Kovalenko, stazione di montagna. Cerco Olena Kovalenko.»',
+      '«Mamma... sono io.»',
+      'Poi solo fruscio. L\'onda di IRIS, ferma accanto a me. «Aspettiamo», ha detto piano.',
+      '«...Myra? Myra, sono la mamma. Ti sento.»',
+    ],
+  },
+  {
+    key: 'c10_dawn', fx: [],
+    from: { x: 0.5, y: 0.45, s: 1.15 }, to: { x: 0.55, y: 0.6, s: 1.02 },
+    lines: [
+      'All\'alba, giù nelle valli, le luci hanno cominciato a riaccendersi. Una dopo l\'altra.',
+      'Altre reti. Altre voci. Altre famiglie che si ritrovavano.',
+      'Una rete riparata non è un cavo. Sono persone che tornano a parlarsi.',
+    ],
+  },
+];
+const REELS: Record<string, Shot[]> = { prologue: SHOTS, silence: SILENCE, epilogue: EPILOGUE };
+
 export class IntroScene extends Phaser.Scene {
   private idx = -1;
   private line = 0;
@@ -96,6 +140,10 @@ export class IntroScene extends Phaser.Scene {
   private t0 = 0;
 
   constructor() { super('intro'); }
+
+  private reel = 'prologue';
+  private shots: Shot[] = SHOTS;
+  init(data: { reel?: string }) { this.reel = data?.reel ?? 'prologue'; this.shots = REELS[this.reel] ?? SHOTS; }
 
   create() {
     this.idx = -1; this.leaving = false; this.layers = [];
@@ -124,8 +172,8 @@ export class IntroScene extends Phaser.Scene {
 
   private nextShot() {
     this.idx++;
-    if (this.idx >= SHOTS.length) return this.finish();
-    const shot = SHOTS[this.idx];
+    if (this.idx >= this.shots.length) return this.finish();
+    const shot = this.shots[this.idx];
     this.busy = true;
     Audio.bed('wind', shot.sound === 'wind', 0.6);
 
@@ -265,7 +313,7 @@ export class IntroScene extends Phaser.Scene {
   }
 
   private startLine() {
-    this.full = SHOTS[this.idx].lines[this.line];
+    this.full = this.shots[this.idx].lines[this.line];
     this.shown = 0; this.acc = 0;
     this.caption.setText('').setColor(hex(this.full.startsWith('«') ? P.lamp2 : P.cream2));
     this.caption.y = VIEW_H - 54;
@@ -277,7 +325,7 @@ export class IntroScene extends Phaser.Scene {
     if (this.busy || this.leaving) return;
     if (this.shown < this.full.length) { this.shown = this.full.length; this.caption.setText(this.full); return; }
     this.line++;
-    if (this.line < SHOTS[this.idx].lines.length) {
+    if (this.line < this.shots[this.idx].lines.length) {
       this.busy = true;
       this.tweens.add({ targets: this.caption, alpha: 0, duration: 350, onComplete: () => { this.busy = false; this.startLine(); } });
     } else {
@@ -296,14 +344,14 @@ export class IntroScene extends Phaser.Scene {
       this.layers.forEach((l) => l.destroy());
       this.layers = [];
       this.shotCam = undefined;
-      const t = this.add.text(VIEW_W / 2, VIEW_H / 2 - 20, 'SIGNAL', { fontFamily: FONT_TITLE, fontSize: '40px', color: hex(P.cream2) })
+      const t = this.add.text(VIEW_W / 2, VIEW_H / 2 - 20, this.reel === 'silence' ? 'SILENCE' : 'SIGNAL', { fontFamily: FONT_TITLE, fontSize: '40px', color: hex(P.cream2) })
         .setOrigin(0.5).setShadow(0, 0, hex(P.cyan), 10, true, true).setDepth(20).setAlpha(0).setScale(0.96);
       cam.fadeIn(10, 0, 0, 0);
       this.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 2400, ease: 'Sine.out' });
       this.time.delayedCall(4400, () => {
         Audio.bed('wind', false);
         this.tweens.add({ targets: t, alpha: 0, duration: 1600, ease: 'Sine.in' });
-        this.time.delayedCall(1800, () => this.scene.start('station', { tutorial: true }));
+        this.time.delayedCall(1800, () => this.reel === 'prologue' ? this.scene.start('station', { tutorial: true }) : this.scene.start('title'));
       });
     });
   }

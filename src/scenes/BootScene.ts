@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
     this.load.image('keyart', 'assets/story/keyart.png');
-    ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
+    ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
     // barra di caricamento
     const bar = this.add.rectangle(220, 180, 0, 4, 0x3fa7b5).setOrigin(0, 0.5);
     this.load.on('progress', (v: number) => bar.setSize(200 * v, 4));
@@ -27,11 +27,12 @@ export class BootScene extends Phaser.Scene {
     this.keyPlayer();
     createPlayerAnims(this);
     // lo sfondo è dipinto ad alta risoluzione e mostrato a metà: filtro lineare per ridurlo pulito
-    ['room-control', 'room-lab', 'room-comms', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
+    ['room-control', 'room-lab', 'room-comms', 'keyart', 'c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR));
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
-      if (q.has('tracer')) { this.scene.start('tracerhub'); return; }
+      if (q.has('reel')) { this.scene.start('intro', { reel: q.get('reel') }); return; }
+    if (q.has('tracer')) { this.scene.start('tracerhub'); return; }
     if (import.meta.env.DEV && q.has('fw')) {
       const m = Phaser.Math.Clamp(Number(q.get('fw')) || 1, 1, 3) - 1;
       writeSave({ act: 1, flags: { power: true, irisAwake: true, tutorialDone: true, gatewayRestored: true, doorServer: true, labVisited: true, routingRestored: true, nightStarted: true, nightDone: true, commsVisited: true, fwMission: m }, room: 'comms', x: 384, y: 240 });
