@@ -11,7 +11,7 @@ const ROOMS = { control: CONTROL, lab: LAB, comms: COMMS } as const;
 // dove compare Myra entrando in una stanza, a seconda della stanza da cui arriva
 const ENTRIES: Partial<Record<string, { x: number; y: number }>> = {
   'control>lab': LAB.ENTRY_IMG, 'lab>control': CONTROL.ENTRY_IMG,
-  'lab>comms': COMMS.ENTRY_IMG, 'comms>lab': { x: 1305, y: 455 },
+  'lab>comms': COMMS.ENTRY_IMG, 'comms>lab': { x: 1190, y: 440 },
 };
 type RoomId = keyof typeof ROOMS;
 const S = 0.5; // scala comune degli sfondi
@@ -90,7 +90,7 @@ export class StationScene extends Phaser.Scene {
     if (isControl && !this.state.flags.doorServer) this.doorZone = block(DOOR_BLOCK);
 
     if (isControl) this.addScreenFlicker(); else if (this.roomId === 'lab') this.addLabFx(); else this.addCommsFx();
-    this.doorLight = this.add.image(1405 * S, 330 * S, 'glow').setScale(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(150).setVisible(isControl);
+    this.doorLight = this.add.image(1380 * S, 122 * S, 'glow').setScale(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(150).setVisible(isControl);
     LAMPS_IMG.forEach((l) => {
       const g = this.add.image(l.x * S, l.y * S, 'glow').setScale(2.2).setTint(P.lamp).setAlpha(0.18)
         .setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
@@ -98,11 +98,11 @@ export class StationScene extends Phaser.Scene {
       this.lampFx.push(g);
     });
     // la console che si risveglia: un battito di luce ciano
-    this.consoleBeacon = this.add.image(735 * S, 410 * S, 'glow').setScale(1.3, 0.8).setTint(P.cyan).setAlpha(0)
+    this.consoleBeacon = this.add.image(735 * S, 385 * S, 'glow').setScale(1.4, 0.8).setTint(P.cyan).setAlpha(0)
       .setBlendMode(Phaser.BlendModes.ADD).setDepth(281.6);
 
     // spia d'emergenza del quadro elettrico: l'unica luce nel buio, indica dove andare
-    this.breakerLed = this.add.image(1055 * S, 150 * S, 'glow').setScale(0.6).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100).setVisible(isControl);
+    this.breakerLed = this.add.image(1140 * S, 210 * S, 'glow').setScale(0.6).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100).setVisible(isControl);
     this.tweens.add({ targets: this.breakerLed, alpha: 0.15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     const start = this.entering && valid ? { x: saved!.x, y: saved!.y }
       : this.entering ? { x: ENTRY_IMG.x * S, y: ENTRY_IMG.y * S }
@@ -245,7 +245,7 @@ export class StationScene extends Phaser.Scene {
 
   // i monitor con errore lampeggiano sopra il dipinto; i canali attivi pulsano
   private addScreenFlicker() {
-    [[790, 95, 80, 55], [680, 180, 80, 55]].forEach(([x, y, w, h]) => {
+    [[822, 47, 82, 58], [727, 130, 82, 58]].forEach(([x, y, w, h]) => {
       // schermo riparato: dati ciano al posto dell'errore rosso (visibile quando il gateway torna)
       const fixed = this.add.graphics().setDepth(156.4);
       fixed.fillStyle(0x0b1a1f).fillRect(x * S, y * S, w * S, h * S);
@@ -260,8 +260,8 @@ export class StationScene extends Phaser.Scene {
       this.time.delayedCall(Phaser.Math.Between(300, 1500), tick);
       this.screenFx.push(r);
     });
-    [[565, 95, 80, 55], [565, 180, 80, 55], [795, 180, 80, 55], [645, 385, 80, 55], [745, 385, 80, 55]].forEach(([x, y, w, h]) => {
-      const c = this.add.rectangle(x * S, y * S, w * S, h * S, P.cyan, 0.05).setOrigin(0).setDepth(y < 300 ? 156.5 : 281.5).setBlendMode(Phaser.BlendModes.ADD);
+    [[627, 47, 82, 58], [627, 130, 82, 58], [822, 130, 82, 58], [625, 342, 95, 72], [748, 357, 92, 68]].forEach(([x, y, w, h]) => {
+      const c = this.add.rectangle(x * S, y * S, w * S, h * S, P.cyan, 0.05).setOrigin(0).setDepth(y < 300 ? 156.5 : 321).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({ targets: c, alpha: 0.14, duration: Phaser.Math.Between(90, 160), yoyo: true, repeat: -1, repeatDelay: Phaser.Math.Between(1500, 4000) });
       this.screenFx.push(c);
     });
@@ -478,24 +478,24 @@ export class StationScene extends Phaser.Scene {
   // ===== SALA COMUNICAZIONI =====
   private addCommsFx() {
     // spie degli armadi: rosse e ambrate, ognuna col suo ritmo
-    const leds: [number, number, number][] = [[285, 170, P.red2], [370, 250, P.lamp2], [455, 160, P.red2], [535, 300, P.lamp2], [620, 200, P.red2], [1100, 240, P.red2], [960, 330, P.lamp2]];
+    const leds: [number, number, number][] = [[265, 185, P.red2], [395, 245, P.lamp2], [490, 150, P.red2], [520, 300, P.lamp2], [300, 330, P.red2], [900, 210, P.red2], [1010, 150, P.red2], [1100, 280, P.lamp2], [930, 330, P.lamp2]];
     leds.forEach(([x, y, c], i) => {
       const g = this.add.image(x * S, y * S, 'glow').setScale(0.5).setTint(c).setAlpha(0.15).setBlendMode(Phaser.BlendModes.ADD).setDepth(150);
       this.tweens.add({ targets: g, alpha: 0.55, duration: 300 + i * 170, yoyo: true, repeat: -1, repeatDelay: 400 + i * 90 });
     });
     // tastierino della porta blindata
-    this.gateLight = this.add.image(842 * S, 262 * S, 'glow').setScale(0.6).setTint(this.state.flags.firewallRestored ? P.phos : P.lamp).setAlpha(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(150);
+    this.gateLight = this.add.image(793 * S, 230 * S, 'glow').setScale(0.6).setTint(this.state.flags.firewallRestored ? P.phos : P.lamp).setAlpha(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(150);
     this.tweens.add({ targets: this.gateLight, alpha: 0.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     // portatile della postazione
-    const lap = this.add.image(1355 * S, 410 * S, 'glow').setScale(1.4, 0.9).setTint(P.cyan).setAlpha(0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    const lap = this.add.image(1345 * S, 440 * S, 'glow').setScale(1.4, 0.9).setTint(P.cyan).setAlpha(0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
     this.tweens.add({ targets: lap, alpha: 0.26, duration: 1300, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     // neve oltre la finestra e la luce rossa dell'antenna
     const snow = this.add.particles(0, 0, 'px', {
-      x: { min: 1210 * S, max: 1520 * S }, y: 30 * S, lifespan: 2400, speedY: { min: 10, max: 18 }, speedX: { min: -4, max: 1 },
+      x: { min: 1245 * S, max: 1530 * S }, y: 40 * S, lifespan: 2400, speedY: { min: 10, max: 18 }, speedX: { min: -4, max: 1 },
       alpha: { min: 0.4, max: 0.8 }, tint: P.cream2, frequency: 160,
     }).setDepth(-999);
-    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(1210 * S, 30 * S, 310 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
-    const red = this.add.image(1355 * S, 80 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
+    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(1245 * S, 40 * S, 285 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
+    const red = this.add.image(1452 * S, 72 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
     this.tweens.add({ targets: red, alpha: 0.9, duration: 120, yoyo: true, hold: 200, repeat: -1, repeatDelay: 1600 });
   }
   private gateLight?: Phaser.GameObjects.Image;
@@ -589,11 +589,11 @@ export class StationScene extends Phaser.Scene {
     this.paused = true;
     this.player.setVelocity(0, 0);
     this.card('Più tardi.', 900, () => {
-      this.player.setPosition(1135 * S, 600 * S);
+      this.player.setPosition(1230 * S, 620 * S);
       this.player.anims.stop();
       this.player.setFrame('right-0');
       this.cameras.main.stopFollow();
-      this.cameras.main.pan(1250 * S, 600 * S, 2500, 'Sine.easeInOut');
+      this.cameras.main.pan(1330 * S, 600 * S, 2500, 'Sine.easeInOut');
       this.time.delayedCall(1800, () => {
         this.paused = false;
         this.iris.say([
@@ -749,10 +749,10 @@ export class StationScene extends Phaser.Scene {
   private checkExits() {
     if (this.leaving || this.iris.open || this.paused) return;
     const x = this.player.x / S, y = this.player.y / S;
-    if (this.roomId === 'control' && this.state.flags.doorServer && x > 1345 && y > 200 && y < 575) this.goTo('lab');
-    if (this.roomId === 'lab' && x < 62 && y > 460 && y < 712) this.goTo('control');
-    if (this.roomId === 'lab' && this.state.flags.nightDone && x > 1268 && y < 440) this.goTo('comms');
-    if (this.roomId === 'comms' && x < 135 && y > 420 && y < 535) this.goTo('lab');
+    if (this.roomId === 'control' && this.state.flags.doorServer && x > 1300 && y > 380 && y < 560) this.goTo('lab');
+    if (this.roomId === 'lab' && x < 120 && y > 395 && y < 520) this.goTo('control');
+    if (this.roomId === 'lab' && this.state.flags.nightDone && x > 1112 && x < 1272 && y < 404) this.goTo('comms');
+    if (this.roomId === 'comms' && x < 120 && y > 410 && y < 535) this.goTo('lab');
   }
 
   private goTo(room: RoomId) {
@@ -772,23 +772,23 @@ export class StationScene extends Phaser.Scene {
   // --- Laboratorio: effetti vivi e interazioni
   private addLabFx() {
     // stufetta e lampada: luce calda che respira
-    const heater = this.add.image(1462 * S, 665 * S, 'glow').setScale(1.8).setTint(P.lamp).setAlpha(0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    const heater = this.add.image(1310 * S, 628 * S, 'glow').setScale(1.8).setTint(P.lamp).setAlpha(0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
     this.tweens.add({ targets: heater, alpha: 0.32, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    const lamp = this.add.image(285 * S, 410 * S, 'glow').setScale(2.4).setTint(P.lamp).setAlpha(0.16).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
+    const lamp = this.add.image(140 * S, 445 * S, 'glow').setScale(2.4).setTint(P.lamp).setAlpha(0.16).setBlendMode(Phaser.BlendModes.ADD).setDepth(9100);
     this.tweens.add({ targets: lamp, alpha: 0.22, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     // oscilloscopi: tracce verdi che pulsano
-    [[860, 262], [1012, 268]].forEach(([x, y], i) => {
+    [[858, 237], [416, 240], [768, 237]].forEach(([x, y], i) => {
       const o = this.add.image(x * S, y * S, 'glow').setScale(0.9, 0.5).setTint(P.phos).setAlpha(0.1).setBlendMode(Phaser.BlendModes.ADD).setDepth(200);
       this.tweens.add({ targets: o, alpha: 0.25, duration: 500 + i * 230, yoyo: true, repeat: -1 });
     });
     // neve dietro la finestra
     const snow = this.add.particles(0, 0, 'px', {
-      x: { min: 605 * S, max: 1025 * S }, y: 20 * S, lifespan: 2600,
+      x: { min: 500 * S, max: 950 * S }, y: 15 * S, lifespan: 2600,
       speedY: { min: 10, max: 18 }, speedX: { min: -3, max: 1 }, alpha: { min: 0.4, max: 0.8 }, tint: P.cream2, frequency: 140,
     }).setDepth(-999);
-    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(605 * S, 20 * S, 420 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
+    snow.addEmitZone({ type: 'random', source: new Phaser.Geom.Rectangle(500 * S, 15 * S, 450 * S, 4) } as Phaser.Types.GameObjects.Particles.EmitZoneData);
     // la spia rossa dell'antenna, fuori dalla finestra
-    const red = this.add.image(838 * S, 60 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
+    const red = this.add.image(798 * S, 38 * S, 'glow').setScale(0.25).setTint(P.red2).setBlendMode(Phaser.BlendModes.ADD).setDepth(-998).setAlpha(0);
     this.tweens.add({ targets: red, alpha: 0.9, duration: 120, yoyo: true, hold: 200, repeat: -1, repeatDelay: 1600 });
   }
 
@@ -831,7 +831,7 @@ export class StationScene extends Phaser.Scene {
       this.brush.setScale(0.35);
       this.darkRT.erase(this.brush, this.player.x, this.player.y - 40);
     } else if (this.night) {
-      this.brush.setScale(1.6); this.darkRT.erase(this.brush, 1462 * S, 665 * S);
+      this.brush.setScale(1.6); this.darkRT.erase(this.brush, 1310 * S, 628 * S);
       this.brush.setScale(0.5); this.darkRT.erase(this.brush, this.player.x, this.player.y - 30);
     } else {
       this.R.LAMPS_IMG.forEach((l) => { this.brush.setScale(1.1); this.darkRT.erase(this.brush, l.x * S, l.y * S); });

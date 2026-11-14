@@ -10,9 +10,8 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('boot'); }
 
   preload() {
-    // anteprime di stile (non pixel): ?stile=illustrato · ?stile=hades
-    const stile = new URLSearchParams(location.search).get('stile');
-    const alt = stile === 'illustrato' ? 'assets/alt/' : stile === 'hades' ? 'assets/alt-hades/' : '';
+    // anteprima dello stile graphic novel: ?stile=hades (lo stile predefinito è l'illustrato morbido)
+    const alt = new URLSearchParams(location.search).get('stile') === 'hades' ? 'assets/alt-hades/' : '';
     this.load.image('room-control', alt ? alt + 'control_room.png' : 'assets/rooms/control_room.png');
     this.load.image('room-lab', 'assets/rooms/lab.png');
     this.load.image('room-comms', 'assets/rooms/comms.png');
@@ -81,11 +80,11 @@ export class BootScene extends Phaser.Scene {
     tex.refresh();
     tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
     // griglia 4×2: colonne giù, sinistra, destra, su; riga 0 fermo, riga 1 passo
-    tex.add('face', 0, 160, 95, 130, 120); // ritratto per i dialoghi
+    tex.add('face', 0, 172, 18, 120, 112); // ritratto per i dialoghi
     const dirs = ['down', 'left', 'right', 'up'];
     dirs.forEach((dir, c) => {
-      tex.add(`${dir}-0`, 0, c * 384, 38, 384, 352);
-      tex.add(`${dir}-1`, 0, c * 384, 418, 384, 352);
+      tex.add(`${dir}-0`, 0, c * 384, 4, 384, 424);
+      tex.add(`${dir}-1`, 0, c * 384, 432, 384, 424);
     });
   }
 }

@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 // Protagonista: foglio generato (public/assets/sprites/player_sheet.png) già ritagliato in BootScene.
 // Frame per direzione: "<dir>-0" in piedi, "<dir>-1" passo.
 export type Dir = 'down' | 'left' | 'right' | 'up';
-export const PLAYER_SCALE = 0.3;
+export const PLAYER_SCALE = 0.23;
 const SPEED = 110; // px/s nel mondo
 
 export function createPlayerAnims(scene: Phaser.Scene) {
@@ -28,7 +28,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 0.98).setScale(PLAYER_SCALE);
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(110, 40).setOffset(137, 300); // collisione solo ai piedi (pixel del frame)
+    body.setSize(120, 44).setOffset(132, 372); // collisione solo ai piedi (pixel del frame)
     this.play('idle-down');
   }
 
