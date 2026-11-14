@@ -62,27 +62,16 @@ const SHOTS: Shot[] = [
     ],
   },
   {
-    key: 'c5_journey', fx: ['snow', 'dusk'], sound: 'wind',
-    from: { x: 0.35, y: 0.62, s: 1.2 }, to: { x: 0.55, y: 0.45, s: 1.04 },
-    lines: [
-      'Tre giorni di cammino. Sirene lontane, fili della corrente a terra, nessuna voce.',
-      'Ogni sera accendevo il telefono. Nessun servizio. Ogni sera.',
-    ],
-  },
-  {
-    key: 'c4_refuge', fx: ['snow', 'torch'], sound: 'wind',
-    from: { x: 0.28, y: 0.62, s: 1.18 }, to: { x: 0.5, y: 0.48, s: 1.02 },
-    lines: [
-      'Non so niente di reti. Non so da dove si comincia.',
-      'So solo che non posso restare ferma ad aspettare.',
-    ],
+    // il viaggio e l'arrivo: cinematic animata nel motore (CineJourneyScene)
+    key: '@cine:cammino', fx: [],
+    from: { x: 0.5, y: 0.5, s: 1 }, to: { x: 0.5, y: 0.5, s: 1 },
+    lines: [],
   },
   {
     key: 'c6_inside', fx: ['torch', 'redlight'],
     from: { x: 0.4, y: 0.55, s: 1.05 }, to: { x: 0.55, y: 0.35, s: 1.25 },
     lines: [
       'Dentro, tutto era rimasto fermo a quella notte.',
-      'E nel buio, qualcosa teneva la stazione in silenzio.',
     ],
   },
 ];
@@ -173,9 +162,10 @@ export class IntroScene extends Phaser.Scene {
     this.idx++;
     if (this.idx >= this.shots.length) return this.finish();
     const shot = this.shots[this.idx];
-    if (shot.key === '@cine') {
+    if (shot.key.startsWith('@cine')) {
+      const scene = shot.key === '@cine:cammino' ? 'cinejourney' : 'cine';
       this.cameras.main.fadeOut(600, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('cine', { next: { reel: this.reel, from: this.idx + 1 } }));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene, { next: { reel: this.reel, from: this.idx + 1 } }));
       return;
     }
     this.busy = true;

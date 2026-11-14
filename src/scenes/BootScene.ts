@@ -18,7 +18,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
     // cinematic in pixel art
-    ['station_bg', 'crowd_strip', 'myra_reach', 'mother_sheet', 'crowd_sheet'].forEach((k) => this.load.image(`cine-${k}`, `assets/cine/${k}.png`));
+    ['station_bg', 'crowd_strip', 'myra_reach', 'mother_sheet', 'crowd_sheet', 'journey_far', 'journey_road', 'arrival_bg'].forEach((k) => this.load.image(`cine-${k}`, `assets/cine/${k}.png`));
     this.load.image('keyart', 'assets/story/keyart.png');
     ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
     // barra di caricamento
@@ -37,7 +37,7 @@ export class BootScene extends Phaser.Scene {
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
-      if (q.has('cine')) { this.scene.start('cine', {}); return; }
+      if (q.has('cine')) { this.scene.start(q.get('cine') === 'cammino' ? 'cinejourney' : 'cine', {}); return; }
     if (q.has('reel')) { this.scene.start('intro', { reel: q.get('reel') }); return; }
     if (q.has('tracer')) { this.scene.start('tracerhub'); return; }
     if (import.meta.env.DEV && q.has('fw')) {
@@ -92,6 +92,7 @@ export class BootScene extends Phaser.Scene {
     for (let c = 0; c < 4; c++) { crowd.add(`p${c}-0`, 0, c * 384, 0, 384, 432); crowd.add(`p${c}-1`, 0, c * 384, 432, 384, 432); }
     this.keyMagenta('cine-crowd_strip', 'crowdstrip');
     this.keyMagenta('cine-myra_reach', 'myrareach');
+    this.keyMagenta('cine-journey_road', 'journeyroad');
     for (let c = 0; c < 4; c++) this.anims.create({ key: `crowd-walk-${c}`, frames: [{ key: 'crowd', frame: `p${c}-0` }, { key: 'crowd', frame: `p${c}-1` }], frameRate: 4, repeat: -1 });
     this.anims.create({ key: 'mother-walk-right', frames: [{ key: 'mother', frame: 'right-1' }, { key: 'mother', frame: 'right-0' }], frameRate: 4, repeat: -1 });
   }
