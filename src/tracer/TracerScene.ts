@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../core/config';
-import { FONT_MONO, FONT_UI } from '../core/fonts';
+import { FONT_MONO, FONT_UI, FONT_TITLE } from '../core/fonts';
 import { IrisDialog } from '../iris/IrisDialog';
 import { Audio } from '../audio/AudioManager';
 import { Net, Device, dev, ifaceOf, isHost, linkUp, Leg, prefixOf, intToIp, netOf } from './model';
 import { CliState, runRouter, runPc, prompt, CliOut, showRoute } from './cli';
 import { makeLevel, Level, Difficulty, LEVELS } from './levels';
-import { recordStars, addXp, earnBadge, BADGES } from './progress';
+import { recordStars, addXp, earnBadge, BADGES, totalXp } from './progress';
 import { pickAttack, Attack } from './attacks';
 
 // IRIS TRACER — interfaccia ispirata a Cisco Packet Tracer:
@@ -14,10 +14,11 @@ import { pickAttack, Attack } from './attacks';
 // barra in basso con i dispositivi, la guida/gli eventi e le schede Tempo reale / Simulazione.
 // Clic su un dispositivo → finestra con schede Fisico · Config · CLI (router) o Desktop (PC).
 
+// palette da videogioco: notte, ciano, ambra (come la stazione)
 const C = {
-  bar: 0xe4e7eb, bar2: 0xf3f4f6, line: 0xc4c9d0, text: '#1f2933', dim: '#5f6b7a', blue: 0x1e6fb8, blueT: '#1e6fb8',
-  ws: 0xfbfcfd, grid: 0xe9edf1, ok: 0x2fa84f, okT: '#1f8a3e', warn: 0xe0a030, bad: 0xd23a3a, badT: '#c62828',
-  title: 0x2c3e50, cliBg: 0xffffff, cmdBg: 0x111418,
+  bar: 0x0f1a24, bar2: 0x132230, line: 0x2c5a72, text: '#e6f1f7', dim: '#8aa4b8', blue: 0x3fc7e0, blueT: '#5fd8ee',
+  ws: 0x0a131c, grid: 0x14283a, ok: 0x3ee07a, okT: '#5cf08f', warn: 0xf0b040, bad: 0xff4d5e, badT: '#ff7080',
+  title: 0x173247, cliBg: 0x0a0f14, cmdBg: 0x070b0f, panel: 0x0f1a24, gold: 0xf2c14e, goldT: '#f6cf6a',
 };
 const WS = { x: 0, y: 30, w: VIEW_W, h: 250 };          // area di lavoro
 const OX = 20, OY = 92;                                   // origine coordinate dispositivi
@@ -91,35 +92,46 @@ export class TracerScene extends Phaser.Scene {
     const meta = LEVELS.find((l) => l.id === this.levelId)!;
 
     const g = this.add.graphics();
-    // barra dei menu + barra strumenti
-    g.fillStyle(C.bar).fillRect(0, 0, VIEW_W, 14).fillStyle(C.bar2).fillRect(0, 14, VIEW_W, 16).lineStyle(1, C.line).lineBetween(0, 30, VIEW_W, 30);
-    ['File', 'Modifica', 'Opzioni', 'Vista', 'Strumenti', 'Estensioni', 'Aiuto'].forEach((m, i) => this.t(6 + i * 44, 2, m, C.dim, 8));
-    this.t(VIEW_W - 6, 2, `IRIS Tracer · ${meta.id} ${meta.title}`, C.text, 8, true).setOrigin(1, 0);
-    const badge = { studente: [C.ok, 'STUDENTE'], junior: [C.warn, 'JUNIOR IT'], esperto: [C.bad, 'ESPERTO'] }[this.diff] as [number, string];
-    g.fillStyle(badge[0]).fillRoundedRect(6, 17, 58, 11, 5);
-    this.t(35, 18, badge[1], '#ffffff', 7.5, true).setOrigin(0.5, 0);
-    this.timerText = this.t(74, 17.5, '', C.text, 8.5, false, true);
-    this.tool(140, 'Aiuto (H)', () => this.hint(), this.diff === 'esperto');
-    this.tool(196, 'Tutorial', () => this.startTutorial(), false);
-    this.tool(246, 'Esci (Esc)', () => this.leave(), false);
+    // ===== HUD superiore: IRIS · missione · SEGNALE · livello/XP · serie · tempo
+    g.fillStyle(0x060c12).fillRect(0, 0, VIEW_W, 30).lineStyle(1, C.line).lineBetween(0, 30, VIEW_W, 30);
+    g.fillStyle(0x0b1520).fillRoundedRect(4, 3, 30, 24, 3).lineStyle(1, C.blue, 0.8).strokeRoundedRect(4.5, 3.5, 30, 24, 3);
+    this.waveG = this.add.graphics().setDepth(3);
+    this.add.text(40, 4, `MISSIONE ${meta.id}`, { fontFamily: FONT_TITLE, fontSize: '8px', color: C.goldT });
+    this.add.text(40, 15, meta.title.toUpperCase(), { fontFamily: FONT_TITLE, fontSize: '9px', color: C.text });
+    const badge = { studente: [C.ok, 'STUDENTE'], junior: [C.warn, 'JUNIOR'], esperto: [C.bad, 'ESPERTO'] }[this.diff] as [number, string];
+    g.fillStyle(badge[0], 0.18).fillRoundedRect(150, 9, 54, 13, 3).lineStyle(1, badge[0]).strokeRoundedRect(150.5, 9.5, 54, 13, 3);
+    this.add.text(177, 11, badge[1], { fontFamily: FONT_TITLE, fontSize: '7px', color: '#' + badge[0].toString(16).padStart(6, '0') }).setOrigin(0.5, 0);
+    this.add.text(214, 4, 'SEGNALE', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
+    this.add.text(372, 4, 'LIVELLO', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
     this.hud = this.add.graphics().setDepth(2);
-    this.hudText = this.t(304, 17.5, 'RETE', C.text, 8, true);
-    this.xpText = this.t(440, 17.5, '', C.blueT, 8.5, true);
+    this.hudText = this.add.text(352, 15, '', { fontFamily: FONT_MONO, fontSize: '8px', color: C.text }).setOrigin(1, 0).setDepth(3);
+    this.xpText = this.add.text(372, 15, '', { fontFamily: FONT_TITLE, fontSize: '8px', color: C.goldT }).setDepth(3);
+    this.streakText = this.add.text(520, 9, '', { fontFamily: FONT_TITLE, fontSize: '10px', color: '#ff9a3c' }).setDepth(3);
+    this.timerText = this.add.text(VIEW_W - 8, 7, '', { fontFamily: FONT_TITLE, fontSize: '13px', color: C.text }).setOrigin(1, 0);
 
     // area di lavoro "Logica"
+    // lavagna della rete: blu notte, griglia ciano tenue, angoli da mirino
     g.fillStyle(C.ws).fillRect(WS.x, WS.y, WS.w, WS.h);
-    g.lineStyle(1, C.grid);
+    g.lineStyle(1, C.grid, 0.9);
     for (let x = 0; x < VIEW_W; x += 16) g.lineBetween(x, WS.y, x, WS.y + WS.h);
     for (let y = WS.y; y < WS.y + WS.h; y += 16) g.lineBetween(0, y, VIEW_W, y);
-    g.fillStyle(C.bar).fillRoundedRect(4, WS.y + 3, 44, 11, 3);
-    this.t(26, WS.y + 4, 'Logica', C.text, 7.5, true).setOrigin(0.5, 0);
+    g.lineStyle(2, C.blue, 0.6);
+    [[6, WS.y + 6, 1, 1], [VIEW_W - 6, WS.y + 6, -1, 1], [6, WS.y + WS.h - 6, 1, -1], [VIEW_W - 6, WS.y + WS.h - 6, -1, -1]].forEach(([x, y, dx, dy]) => g.lineBetween(x, y, x + 12 * dx, y).lineBetween(x, y, x, y + 12 * dy));
+    this.add.text(14, WS.y + 6, 'TOPOLOGIA', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
 
-    // barra in basso: dispositivi · guida/eventi · modalità
-    g.fillStyle(C.bar).fillRect(0, 280, VIEW_W, 80).lineStyle(1, C.line).lineBetween(0, 280, VIEW_W, 280);
-    this.drawPalette(g);
-    g.fillStyle(0xffffff).fillRoundedRect(112, 285, 420, 70, 4).lineStyle(1, C.line).strokeRoundedRect(112.5, 285.5, 420, 70, 4);
-    this.bottomText = this.add.text(118, 289, '', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, wordWrap: { width: 408 }, lineSpacing: 1 });
-    this.modeBtns = [this.modeBtn(540, 290, '⏱ Tempo reale', false), this.modeBtn(540, 318, '▶ Simulazione', true)];
+    // ===== barra in basso: fumetto di IRIS (guida/eventi) + tasti azione
+    g.fillStyle(0x060c12).fillRect(0, 280, VIEW_W, 80).lineStyle(1, C.line).lineBetween(0, 280, VIEW_W, 280);
+    g.fillStyle(C.panel).fillRoundedRect(8, 286, 430, 68, 5).lineStyle(1, C.blue, 0.7).strokeRoundedRect(8.5, 286.5, 430, 68, 5);
+    g.fillStyle(0x0b1520).fillRoundedRect(14, 292, 34, 34, 3).lineStyle(1, C.blue, 0.6).strokeRoundedRect(14.5, 292.5, 34, 34, 3);
+    this.add.text(31, 330, 'IRIS', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.blueT }).setOrigin(0.5, 0);
+    this.coachWave = this.add.graphics().setDepth(3);
+    this.bottomText = this.add.text(56, 291, '', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, wordWrap: { width: 376 }, lineSpacing: 1 });
+    this.modeBtns = [
+      this.keycap(448, 288, 'H', 'AIUTO', () => this.hint(), this.diff === 'esperto'),
+      this.keycap(544, 288, 'S', 'SIMULAZIONE', () => this.toggleSim(), false),
+      this.keycap(448, 322, 'T', 'TUTORIAL', () => this.startTutorial(), false),
+      this.keycap(544, 322, 'ESC', 'ESCI', () => this.leave(), false),
+    ];
 
     this.topo = this.add.graphics();
     this.ring = this.add.graphics().setDepth(5);
@@ -143,36 +155,34 @@ export class TracerScene extends Phaser.Scene {
 
   private begin() { if (!this.startTime) this.startTime = this.time.now; this.refreshBottom(); }
 
-  private tool(x: number, label: string, cb: () => void, disabled: boolean) {
-    const b = this.t(x, 17.5, label, disabled ? '#a0a8b2' : C.blueT, 8.5, true);
-    if (!disabled) b.setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.iris.open && !this.tut) cb(); });
-    return b;
-  }
+  private waveG!: Phaser.GameObjects.Graphics;
+  private coachWave!: Phaser.GameObjects.Graphics;
+  private streakText!: Phaser.GameObjects.Text;
 
-  private modeBtn(x: number, y: number, label: string, sim: boolean) {
-    return this.t(x, y, label, C.text, 9, true).setPadding(6, 5, 6, 5).setFixedSize(92, 24)
-      .setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.iris.open && !this.tut && this.sim !== sim) this.toggleSim(); });
+  // tasto della barra azioni, disegnato come un tasto della tastiera
+  private keycap(x: number, y: number, key: string, label: string, cb: () => void, disabled: boolean) {
+    const w = 90, h = 28;
+    const g = this.add.graphics();
+    const draw = (hover: boolean, on = false) => {
+      g.clear().fillStyle(on ? 0x13465c : hover ? 0x16283a : 0x0f1a24).fillRoundedRect(x, y, w, h, 4)
+        .lineStyle(1, disabled ? 0x2a3a48 : on ? C.blue : 0x2c5a72).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 4);
+      g.fillStyle(disabled ? 0x1a2430 : 0x1d3448).fillRoundedRect(x + 5, y + 5, key.length > 1 ? 26 : 18, 18, 3).fillStyle(disabled ? 0x111a22 : 0x0c1a26).fillRect(x + 5, y + 19, key.length > 1 ? 26 : 18, 4);
+    };
+    draw(false);
+    const kt = this.add.text(x + 5 + (key.length > 1 ? 13 : 9), y + 8, key, { fontFamily: FONT_TITLE, fontSize: '7px', color: disabled ? '#4a5866' : C.text }).setOrigin(0.5, 0);
+    const lt = this.add.text(x + (key.length > 1 ? 36 : 28), y + 9, label, { fontFamily: FONT_TITLE, fontSize: '7px', color: disabled ? '#4a5866' : C.text });
+    const z = this.add.zone(x, y, w, h).setOrigin(0);
+    if (!disabled) z.setInteractive({ useHandCursor: true }).on('pointerover', () => draw(true)).on('pointerout', () => draw(false))
+      .on('pointerdown', () => { if (!this.iris.open && !this.tut && !this.won) cb(); });
+    (lt as unknown as { redraw: (on: boolean) => void }).redraw = (on: boolean) => draw(false, on);
+    void kt;
+    return lt;
   }
 
   private refreshModes() {
-    this.modeBtns.forEach((b, i) => {
-      const on = (i === 1) === this.sim;
-      b.setBackgroundColor(on ? '#1e6fb8' : '#ffffff').setColor(on ? '#ffffff' : C.text);
-    });
-  }
-
-  // tavolozza dei dispositivi in basso a sinistra (come in Packet Tracer; qui è informativa)
-  private drawPalette(g: Phaser.GameObjects.Graphics) {
-    const items: [string, (x: number, y: number) => void][] = [
-      ['Router', (x, y) => this.iconRouter(g, x, y, 0.7)], ['Switch', (x, y) => this.iconSwitch(g, x, y, 0.7)],
-      ['PC', (x, y) => this.iconPc(g, x, y, true, 0.7)], ['Cavi', (x, y) => { g.lineStyle(2, 0x222222).lineBetween(x - 8, y + 5, x + 8, y - 5); }],
-    ];
-    items.forEach(([label, draw], i) => {
-      const x = 16 + (i % 2) * 46, y = 296 + Math.floor(i / 2) * 32;
-      g.fillStyle(0xffffff).fillRoundedRect(x - 14, y - 12, 40, 28, 3).lineStyle(1, C.line).strokeRoundedRect(x - 13.5, y - 11.5, 40, 28, 3);
-      draw(x + 6, y - 1);
-      this.t(x + 6, y + 8, label, C.dim, 6.5).setOrigin(0.5, 0);
-    });
+    const sim = this.modeBtns[1] as unknown as { redraw: (on: boolean) => void } & Phaser.GameObjects.Text;
+    sim.redraw(this.sim);
+    sim.setText(this.sim ? 'SIMULAZ. ▶' : 'SIMULAZIONE').setColor(this.sim ? C.blueT : C.text);
   }
 
   // --- Icone in stile Packet Tracer
@@ -203,7 +213,9 @@ export class TracerScene extends Phaser.Scene {
       const A = dev(this.net, l.a[0]), B = dev(this.net, l.b[0]);
       const pa = this.pos(A), pb = this.pos(B);
       const ia = ifaceOf(A, l.a[1])!, ib = ifaceOf(B, l.b[1])!;
-      g.lineStyle(1.6, 0x1b1b1b).lineBetween(pa.x, pa.y, pb.x, pb.y);
+      const live = linkUp(this.net, l);
+      g.lineStyle(5, live ? C.blue : C.bad, 0.15).lineBetween(pa.x, pa.y, pb.x, pb.y);
+      g.lineStyle(1.6, live ? C.blue : C.bad, live ? 0.9 : 0.7).lineBetween(pa.x, pa.y, pb.x, pb.y);
       const end = (p: { x: number; y: number }, q: { x: number; y: number }, up: boolean, other: boolean, name: string) => {
         const k = 0.22, x = p.x + (q.x - p.x) * k, y = p.y + (q.y - p.y) * k;
         g.fillStyle(up && other ? C.ok : up ? C.warn : C.bad).fillTriangle(x - 4, y + 3, x + 4, y + 3, x, y - 4);
@@ -243,10 +255,10 @@ export class TracerScene extends Phaser.Scene {
     this.act = this.add.container(0, 0).setDepth(8);
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.08).fillRoundedRect(x + 2, y + 2, w, h, 4);
-    g.fillStyle(0xffffff).fillRoundedRect(x, y, w, h, 4).lineStyle(1, C.line).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 4);
-    g.fillStyle(C.blue).fillRoundedRect(x, y, w, 16, { tl: 4, tr: 4, bl: 0, br: 0 });
+    g.fillStyle(C.panel, 0.94).fillRoundedRect(x, y, w, h, 4).lineStyle(1, C.gold, 0.8).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 4);
+    g.fillStyle(C.gold, 0.18).fillRoundedRect(x, y, w, 16, { tl: 4, tr: 4, bl: 0, br: 0 });
     this.act.add(g);
-    this.act.add(this.t(x + 6, y + 3, 'Attività · obiettivi', '#ffffff', 8.5, true));
+    this.act.add(this.add.text(x + 6, y + 4, 'REGISTRO MISSIONE', { fontFamily: FONT_TITLE, fontSize: '7.5px', color: C.goldT }));
     this.actRows = this.lv.objectives.map((_, i) => this.add.text(x + 6, y + 21 + i * 22, '', { fontFamily: FONT_UI, fontSize: '8.5px', color: C.text, wordWrap: { width: w - 12 } }));
     this.actRows.forEach((r) => this.act.add(r));
     this.actBar = this.add.graphics();
@@ -306,7 +318,7 @@ export class TracerScene extends Phaser.Scene {
     const c = this.add.container(0, 0).setDepth(20);
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.18).fillRoundedRect(x + 3, y + 4, w, h, 5);
-    g.fillStyle(0xf6f7f9).fillRoundedRect(x, y, w, h, 5).lineStyle(1, 0x9aa4b0).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 5);
+    g.fillStyle(0x0c1620, 0.98).fillRoundedRect(x, y, w, h, 5).lineStyle(1, C.blue, 0.8).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 5);
     g.fillStyle(C.title).fillRoundedRect(x, y, w, 16, { tl: 5, tr: 5, bl: 0, br: 0 });
     c.add(g);
     c.add(this.t(x + 8, y + 3, d.hostname, '#ffffff', 9, true));
@@ -328,13 +340,13 @@ export class TracerScene extends Phaser.Scene {
     tabs.forEach(([id, label], i) => {
       const on = this.tab === id;
       const b = this.t(x + 8 + i * 70, y + 20, label, on ? C.text : C.dim, 9, on).setPadding(8, 3, 8, 3).setFixedSize(66, 17)
-        .setBackgroundColor(on ? '#ffffff' : '#e4e7eb').setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.tab = id; Audio.click(); this.buildWindow(); });
+        .setBackgroundColor(on ? '#1d4a63' : '#111c26').setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.tab = id; Audio.click(); this.buildWindow(); });
       c.add(b);
     });
     const body = { x: x + 8, y: y + 40, w: w - 16, h: h - 48 };
     const bg = this.add.graphics();
     const dark = this.tab === 'cli' && isHost(d);
-    bg.fillStyle(dark ? C.cmdBg : 0xffffff).fillRect(body.x, body.y, body.w, body.h).lineStyle(1, C.line).strokeRect(body.x + 0.5, body.y + 0.5, body.w, body.h);
+    bg.fillStyle(dark ? C.cmdBg : C.cliBg).fillRect(body.x, body.y, body.w, body.h).lineStyle(1, C.line).strokeRect(body.x + 0.5, body.y + 0.5, body.w, body.h);
     c.add(bg);
     this.winRows = Array.from({ length: ROWS }, (_, i) => this.add.text(body.x + 6, body.y + 4 + i * 14.4, '', { fontFamily: FONT_MONO, fontSize: '9.5px', color: C.text }));
     this.winRows.forEach((r) => c.add(r));
@@ -377,14 +389,14 @@ export class TracerScene extends Phaser.Scene {
       }
       rows = wrapped.slice(-(ROWS - 1));
       const cursor = Math.floor(this.time.now / 450) % 2 ? '_' : ' ';
-      rows.push({ t: `${prompt(d, T.st)}${T.typed}${cursor}`, c: isHost(d) ? '#ffffff' : '#000000' });
+      rows.push({ t: `${prompt(d, T.st)}${T.typed}${cursor}`, c: '#ffffff' });
     }
     this.winRows.forEach((r, i) => { const v = rows[i]; r.setText(v?.t ?? '').setColor(v?.c ?? C.text); });
   }
 
   private print(id: string, t: string, kind: 'in' | 'out' | 'ok' | 'err' | 'dim' = 'out') {
     const pc = isHost(dev(this.net, id));
-    const col = { in: pc ? '#ffffff' : '#000000', out: pc ? '#d7dde3' : '#1f2933', ok: pc ? '#6fe38a' : C.okT, err: pc ? '#ff7a7a' : C.badT, dim: pc ? '#8a96a3' : C.dim }[kind];
+    const col = { in: '#ffffff', out: pc ? '#d7dde3' : '#9fe7f5', ok: C.okT, err: C.badT, dim: C.dim }[kind];
     this.term(id).lines.push({ t, c: col });
   }
 
@@ -455,8 +467,8 @@ export class TracerScene extends Phaser.Scene {
       { r: [0, WS.y, VIEW_W, WS.h], title: 'L\'area di lavoro', text: 'Qui c\'è la rete da riparare, come nella vista Logica di Packet Tracer. Le spie sui cavi dicono se una porta è accesa (verde) o spenta (rossa).' },
       { r: [ax, ay, aw, ah], title: 'Attività', text: 'Gli obiettivi del livello. Si spuntano da soli quando la rete funziona. La barra mostra il completamento.' },
       { r: [p.x - 26, p.y - 30, 52, 60], title: 'I dispositivi', text: 'Clicca un dispositivo per aprirlo. Il router ha la CLI con i comandi Cisco IOS; il PC ha il Desktop con il prompt dei comandi.' },
-      { r: [112, 285, 420, 70], title: 'Guida', text: 'Qui IRIS ti dice il prossimo passo. Nella CLI premi TAB per scrivere il comando suggerito, poi INVIO.' },
-      { r: [536, 286, 100, 60], title: 'Tempo reale / Simulazione', text: 'In Simulazione ogni ping viaggia lentamente e qui sotto vedi cosa decide ogni dispositivo: il modo migliore per capire dove si rompe la rete.' },
+      { r: [8, 286, 430, 68], title: 'IRIS ti guida', text: 'Qui IRIS ti dice il prossimo passo. Nella CLI premi TAB per scrivere il comando suggerito, poi INVIO.' },
+      { r: [444, 286, 192, 66], title: 'Le tue azioni', text: 'H aiuto, S Simulazione (ogni ping viaggia lento e IRIS ti dice cosa decide ogni dispositivo), T tutorial, ESC esci. In alto: SEGNALE (la salute della rete), livello e serie.' },
     ];
     let i = 0;
     const c = this.add.container(0, 0).setDepth(40);
@@ -475,7 +487,7 @@ export class TracerScene extends Phaser.Scene {
       g.fillRect(0, 0, VIEW_W, y).fillRect(0, y + h, VIEW_W, VIEW_H - y - h).fillRect(0, y, x, h).fillRect(x + w, y, VIEW_W - x - w, h);
       g.lineStyle(2, 0xf0a020).strokeRoundedRect(x, y, w, h, 4);
       const bx = Phaser.Math.Clamp(x + w / 2 - 130, 8, VIEW_W - 268), by = y + h + 8 + 70 < VIEW_H ? y + h + 8 : Math.max(8, y - 78);
-      g.fillStyle(0xffffff).fillRoundedRect(bx, by, 260, 70, 5).lineStyle(1, C.line).strokeRoundedRect(bx + 0.5, by + 0.5, 260, 70, 5);
+      g.fillStyle(C.panel).fillRoundedRect(bx, by, 260, 70, 5).lineStyle(1, C.line).strokeRoundedRect(bx + 0.5, by + 0.5, 260, 70, 5);
       c.add(g);
       c.add(this.t(bx + 8, by + 6, `${s.title}  ·  ${i + 1}/${steps.length}`, C.blueT, 9.5, true));
       c.add(this.add.text(bx + 8, by + 21, s.text, { fontFamily: FONT_UI, fontSize: '8.5px', color: C.text, wordWrap: { width: 244 }, lineSpacing: 1 }));
@@ -498,6 +510,7 @@ export class TracerScene extends Phaser.Scene {
       if (e.key === 'Escape') return this.leave();
       if (e.key === 'h' || e.key === 'H') return this.hint();
       if (e.key === 's' || e.key === 'S') return this.toggleSim();
+      if (e.key === 't' || e.key === 'T') return this.startTutorial();
       return;
     }
     if (e.key === 'Escape') return this.closeWin();
@@ -615,7 +628,7 @@ export class TracerScene extends Phaser.Scene {
   }
 
   private popup(x: number, y: number, s: string, color: string, size = 10) {
-    const t = this.t(x, y, s, color, size, true).setOrigin(0.5).setDepth(60).setStroke('#ffffff', 3);
+    const t = this.t(x, y, s, color, size, true).setOrigin(0.5).setDepth(60).setStroke('#05090d', 3);
     this.tweens.add({ targets: t, y: y - 22, alpha: 0, duration: 1100, ease: 'Sine.out', onComplete: () => t.destroy() });
   }
 
@@ -657,7 +670,7 @@ export class TracerScene extends Phaser.Scene {
     this.tweens.add({ targets: burst, radius: 46, alpha: 0, duration: 700, onComplete: () => burst.destroy() });
     this.alert?.destroy();
     const msg = `⚠ SILENCE · ${this.diff === 'esperto' ? a.vague : a.desc}`;
-    const c = this.add.container(8, WS.y + 18).setDepth(45);
+    const c = this.add.container(8, WS.y + 28).setDepth(45);
     const tx = this.t(10, 0, msg, '#ffffff', 9, true).setOrigin(0, 0.5);
     const g = this.add.graphics().fillStyle(C.bad).fillRoundedRect(0, -9, tx.width + 20, 18, 4);
     c.add([g, tx]);
@@ -685,7 +698,7 @@ export class TracerScene extends Phaser.Scene {
     Audio.error();
     const box = this.add.container(VIEW_W / 2, 150).setDepth(50);
     const g = this.add.graphics();
-    g.fillStyle(0xffffff).fillRoundedRect(-170, -60, 340, 120, 6).lineStyle(1, C.line).strokeRoundedRect(-170, -60, 340, 120, 6);
+    g.fillStyle(C.panel).fillRoundedRect(-170, -60, 340, 120, 6).lineStyle(1, C.line).strokeRoundedRect(-170, -60, 340, 120, 6);
     g.fillStyle(C.bad).fillRoundedRect(-170, -60, 340, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
     box.add([g, this.t(0, -56, 'SILENCE ha isolato la rete', '#ffffff', 9.5, true).setOrigin(0.5, 0),
       this.add.text(0, -24, 'La salute della rete è arrivata a zero.\nOgni guasto aperto la fa scendere: ripara prima quello che blocca di più.', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, align: 'center' }).setOrigin(0.5, 0),
@@ -693,10 +706,26 @@ export class TracerScene extends Phaser.Scene {
   }
 
   private drawHud() {
-    const x = 330, y = 18, w = 100, h = 9;
+    const g = this.hud.clear();
+    // SEGNALE: barra a segmenti, cambia colore e lampeggia sotto il 30%
+    const seg = 20, x0 = 214, y0 = 15, sw = 6;
+    const lit = Math.ceil(this.health / 100 * seg);
     const col = this.health > 60 ? C.ok : this.health > 30 ? C.warn : C.bad;
-    this.hud.clear().fillStyle(0xd5dae0).fillRoundedRect(x, y, w, h, 4).fillStyle(col).fillRoundedRect(x, y, Math.max(3, w * this.health / 100), h, 4);
-    this.xpText.setText(`XP ${this.xp}${this.streak >= 3 ? `   serie ×${this.streak >= 6 ? 3 : 2}` : ''}`);
+    const blink = this.health <= 30 && Math.floor(this.time.now / 250) % 2 === 0;
+    for (let i = 0; i < seg; i++) g.fillStyle(i < lit ? col : 0x1a2a38, i < lit && blink ? 0.4 : 1).fillRect(x0 + i * (sw + 1), y0, sw, 9);
+    this.hudText.setText(`${Math.ceil(this.health)}%`);
+    // LIVELLO: ogni 200 XP un livello
+    const total = totalXp(), lvl = Math.floor(total / 200) + 1, into = total % 200;
+    g.fillStyle(0x1a2a38).fillRoundedRect(410, 17, 100, 6, 3).fillStyle(C.gold).fillRoundedRect(410, 17, Math.max(3, into / 2), 6, 3);
+    this.xpText.setText(`LV ${lvl}`);
+    this.streakText.setText(this.streak >= 2 ? `🔥 ×${this.streak >= 6 ? 3 : this.streak >= 3 ? 2 : 1}  ${this.streak}` : '');
+    // onde di IRIS (HUD e fumetto): vive quando c'è un attacco o quando parla
+    const t = this.time.now, amp = this.attack ? 6 : this.iris.open ? 4 : 1.5;
+    for (const [w, x, y, ww, hh] of [[this.waveG, 5, 4, 28, 22], [this.coachWave, 15, 293, 32, 32]] as [Phaser.GameObjects.Graphics, number, number, number, number][]) {
+      w.clear().lineStyle(1.5, this.attack ? C.bad : C.blue).beginPath();
+      for (let i = 0; i <= ww; i += 2) { const v = Math.sin(i / 3 + t / 120) * Math.sin(i / 9 + t / 500) * amp; const py = y + hh / 2 + v; if (i === 0) w.moveTo(x + i, py); else w.lineTo(x + i, py); }
+      w.strokePath();
+    }
   }
 
   private checkWin() {
@@ -724,7 +753,7 @@ export class TracerScene extends Phaser.Scene {
       Audio.power();
       const box = this.add.container(VIEW_W / 2, 150).setDepth(50);
       const g = this.add.graphics();
-      g.fillStyle(0x000000, 0.2).fillRoundedRect(-178, -73, 360, 150, 6).fillStyle(0xffffff).fillRoundedRect(-180, -75, 360, 150, 6).lineStyle(1, C.line).strokeRoundedRect(-180, -75, 360, 150, 6);
+      g.fillStyle(0x000000, 0.2).fillRoundedRect(-178, -73, 360, 150, 6).fillStyle(C.panel).fillRoundedRect(-180, -75, 360, 150, 6).lineStyle(1, C.line).strokeRoundedRect(-180, -75, 360, 150, 6);
       g.fillStyle(C.ok).fillRoundedRect(-180, -75, 360, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
       const t1 = this.t(0, -71, 'Attività completata · rete funzionante', '#ffffff', 9.5, true).setOrigin(0.5, 0);
       const t2 = this.t(0, -40, '★'.repeat(stars) + '☆'.repeat(3 - stars), '#f0a020', 28, true).setOrigin(0.5, 0);
