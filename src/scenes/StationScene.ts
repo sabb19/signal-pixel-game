@@ -78,7 +78,12 @@ export class StationScene extends Phaser.Scene {
     OCCLUDERS.forEach((o, i) => {
       const [x, y, w, h] = o.rect;
       if (!tex.has(`occ${i}`)) tex.add(`occ${i}`, 0, x, y, w, h);
-      this.add.image(x * S, y * S, KEY, `occ${i}`).setOrigin(0).setScale(S).setDepth(o.baseY * S);
+      const im = this.add.image(x * S, y * S, KEY, `occ${i}`).setOrigin(0).setScale(S).setDepth(o.baseY * S);
+      // sagoma esatta dell'oggetto: niente pezzi di pavimento "incollati" sopra Myra
+      if (o.poly) {
+        const g = this.make.graphics({}, false).fillStyle(0xffffff).fillPoints(o.poly.map(([px, py]) => new Phaser.Math.Vector2(px * S, py * S)), true);
+        im.setMask(g.createGeometryMask());
+      }
     });
     const block = (r: number[]) => {
       const z = this.add.zone((r[0] + r[2] / 2) * S, (r[1] + r[3] / 2) * S, r[2] * S, r[3] * S);
@@ -248,8 +253,7 @@ export class StationScene extends Phaser.Scene {
     [[822, 47, 82, 58], [727, 130, 82, 58]].forEach(([x, y, w, h]) => {
       // schermo riparato: dati ciano al posto dell'errore rosso (visibile quando il gateway torna)
       const fixed = this.add.graphics().setDepth(156.4);
-      fixed.fillStyle(0x0b1a1f).fillRect(x * S, y * S, w * S, h * S);
-      for (let k = 0; k < 5; k++) fixed.fillStyle(P.cyan, 0.9).fillRect(x * S + 3, y * S + 4 + k * 5, 8 + ((k * 13 + x) % 22), 2);
+      fixed.fillStyle(P.cyan, 0.12).fillRoundedRect(x * S, y * S, w * S, h * S, 3); // schermo riparato: solo un bagliore
       fixed.setVisible(!!this.state.flags.gatewayRestored);
       this.fixedScreens.push(fixed);
       const r = this.add.rectangle(x * S, y * S, w * S, h * S, P.red2, 0).setOrigin(0).setDepth(156.5).setBlendMode(Phaser.BlendModes.ADD);

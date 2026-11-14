@@ -14,16 +14,14 @@ export const BLOCKERS: Rect[] = [
   [1275, 0, 261, 445],          // scaffali
   [40, 0, 130, 392],            // parete sinistra e stipite
   [0, 0, 40, 864],              // bordo sinistro
-  [0, 556, 388, 256],           // scrivania del padre e sedia
+  [0, 478, 388, 334],           // scrivania del padre e sedia (fino al bordo del piano)
   [0, 720, 120, 144],           // casse in basso a sinistra
   [1272, 468, 264, 396],        // letto e stufetta
   [0, 842, 1536, 22],           // bordo inferiore
 ];
 export const DOOR_BLOCK: Rect = [0, 0, 0, 0];
 
-export const OCCLUDERS: { rect: Rect; baseY: number }[] = [
-  { rect: [0, 470, 392, 394], baseY: 812 },     // scrivania del padre
-];
+export const OCCLUDERS: { rect: Rect; baseY: number; poly?: [number, number][] }[] = [];
 
 export const SPOTS: { id: string; label: string; x: number; y: number; r: number }[] = [
   { id: 'bench', label: 'Banco di prova', x: 760, y: 450, r: 110 },

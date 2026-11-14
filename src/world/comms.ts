@@ -21,9 +21,7 @@ export const BLOCKERS: Rect[] = [
 ];
 export const DOOR_BLOCK: Rect = [0, 0, 0, 0];
 
-export const OCCLUDERS: { rect: Rect; baseY: number }[] = [
-  { rect: [0, 515, 400, 349], baseY: 864 },     // casse
-];
+export const OCCLUDERS: { rect: Rect; baseY: number; poly?: [number, number][] }[] = [];
 
 export const SPOTS: { id: string; label: string; x: number; y: number; r: number }[] = [
   { id: 'gate', label: 'Porta blindata', x: 700, y: 440, r: 90 },

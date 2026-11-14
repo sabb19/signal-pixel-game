@@ -16,18 +16,16 @@ export const BLOCKERS: Rect[] = [
   [1440, 0, 96, 330],           // parete destra
   [1425, 320, 111, 270],        // schedario a destra
   [470, 452, 520, 188],         // console centrale (base)
-  [0, 598, 428, 205],           // scrivania sinistra e sedia
+  [0, 520, 428, 283],           // scrivania sinistra e sedia (fino al bordo del piano: Myra non ci finisce dietro)
   [0, 680, 240, 184],           // scatole
-  [1058, 655, 478, 209],        // scrivania destra
+  [1058, 588, 478, 276],        // scrivania destra
   [0, 842, 1536, 22],           // bordo inferiore
 ];
 export const DOOR_BLOCK: Rect = [1310, 330, 130, 200];
 
-export const OCCLUDERS: { rect: Rect; baseY: number }[] = [
-  { rect: [455, 310, 540, 330], baseY: 640 },   // console
-  { rect: [0, 478, 436, 386], baseY: 803 },     // scrivania sinistra
-  { rect: [1052, 545, 484, 319], baseY: 864 },  // scrivania destra
-  { rect: [1420, 315, 116, 275], baseY: 590 },  // schedario destro
+export const OCCLUDERS: { rect: Rect; baseY: number; poly?: [number, number][] }[] = [
+  // console: l'unico mobile dietro cui si può passare; ritaglio con la sua sagoma
+  { rect: [455, 310, 545, 335], baseY: 640, poly: [[540, 318], [905, 328], [990, 430], [990, 615], [900, 642], [795, 642], [470, 560], [462, 425]] },
 ];
 
 export const SPOTS: { id: string; label: string; x: number; y: number; r: number }[] = [

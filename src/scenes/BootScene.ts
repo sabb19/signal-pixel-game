@@ -10,6 +10,9 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('boot'); }
 
   preload() {
+    // ogni versione pubblicata ricarica anche le immagini (niente codice nuovo con immagini vecchie, o viceversa)
+    const L = this.load, img = L.image.bind(L);
+    (L as unknown as { image: (k: string, u: string) => unknown }).image = (k: string, u: string) => img(k, `${u}?v=${__BUILD__}`);
     // anteprima dello stile graphic novel: ?stile=hades (lo stile predefinito è l'illustrato morbido)
     const alt = new URLSearchParams(location.search).get('stile') === 'hades' ? 'assets/alt-hades/' : '';
     this.load.image('room-control', alt ? alt + 'control_room.png' : 'assets/rooms/control_room.png');
@@ -73,8 +76,14 @@ export class BootScene extends Phaser.Scene {
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2];
-      // magenta e i suoi bordi sfumati diventano trasparenti
-      if (r > 140 && b > 140 && g < 110 && Math.abs(r - b) < 90) d[i + 3] = 0;
+      // magenta → trasparente; sui bordi sfumati la parte magenta viene tolta dal colore (niente alone viola)
+      const m = (r + b) / 2 - g;
+      if (m > 70 && r > 120 && b > 120) { d[i + 3] = 0; continue; }
+      if (m > 25 && r > 70 && b > 70) {
+        const k = Math.min(1, (m - 25) / 45);
+        d[i + 3] = Math.round(d[i + 3] * (1 - k));
+        d[i] = Math.min(r, g + 40); d[i + 2] = Math.min(b, g + 40);
+      }
     }
     ctx.putImageData(img, 0, 0);
     tex.refresh();
