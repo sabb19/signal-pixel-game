@@ -25,16 +25,16 @@ const SHOTS: Shot[] = [
     key: 'c1_radio', fx: ['radio'],
     from: { x: 0.5, y: 0.5, s: 1.04 }, to: { x: 0.3, y: 0.56, s: 1.22 },
     lines: [
-      'A casa la radio restava accesa tutta la notte.',
-      'Finché parlava, voleva dire che qualcuno, da qualche parte, era ancora lì.',
-      'Una sera ha smesso di parlare. E il silenzio è entrato in casa.',
+      'Da noi la radio restava accesa tutta la notte. Finché parlava, qualcuno da qualche parte era ancora lì.',
+      '«…attacchi informatici alle reti di comunicazione. Intere regioni isolate…»',
+      'In guerra non cadono solo le case. Cadono anche le voci.',
     ],
   },
   {
     key: 'c2_phone', fx: ['snow', 'phone'],
     from: { x: 0.5, y: 0.4, s: 1.1 }, to: { x: 0.48, y: 0.5, s: 1.35 },
     lines: [
-      'Il giorno dell\'evacuazione io e mia madre ci siamo perse tra la folla.',
+      'Il giorno dell\'evacuazione io e mia madre ci siamo perse tra la folla della stazione.',
       'Il suo ultimo messaggio è arrivato alle 4:12. Poi la rete è morta.',
       '«Se ci perdiamo, cerca un segnale. Io ascolterò.»',
     ],
@@ -43,23 +43,23 @@ const SHOTS: Shot[] = [
     key: 'c3_map', fx: ['map'],
     from: { x: 0.45, y: 0.6, s: 1.05 }, to: { x: 0.58, y: 0.38, s: 1.3 },
     lines: [
-      'Di mio padre mi è rimasta una vecchia mappa delle montagne.',
-      'Aveva lavorato in una stazione satellitare, prima che io nascessi. L\'aveva cerchiata a matita.',
+      'Mio padre era tecnico in una stazione satellitare in montagna. Diceva che da lassù si parla con tutto il mondo.',
+      'La stazione si è spenta la prima notte di guerra. Anche lui non è più tornato.',
     ],
   },
   {
     key: 'c2_dish', fx: ['snow', 'static'], sound: 'wind',
     from: { x: 0.55, y: 0.58, s: 1.14 }, to: { x: 0.42, y: 0.4, s: 1.02 },
     lines: [
-      'Diceva che un segnale non è magia. È una strada lunga, fatta di tanti pezzi.',
-      '«Se la strada si interrompe, non si aspetta. La si ripara. Un pezzo alla volta.»',
+      'I centri di accoglienza ascoltano ancora la radio.',
+      'Se riesco a trasmettere da lassù, lei mi sentirà.',
     ],
   },
   {
     key: 'c5_journey', fx: ['snow', 'dusk'], sound: 'wind',
     from: { x: 0.35, y: 0.62, s: 1.2 }, to: { x: 0.55, y: 0.45, s: 1.04 },
     lines: [
-      'Ho camminato per tre giorni. Macchine abbandonate, fili della corrente a terra, nessuna voce.',
+      'Tre giorni di cammino. Sirene lontane, fili della corrente a terra, nessuna voce.',
       'Ogni sera accendevo il telefono. Nessun servizio. Ogni sera.',
     ],
   },
@@ -67,8 +67,8 @@ const SHOTS: Shot[] = [
     key: 'c4_refuge', fx: ['snow', 'torch'], sound: 'wind',
     from: { x: 0.28, y: 0.62, s: 1.18 }, to: { x: 0.5, y: 0.48, s: 1.02 },
     lines: [
-      'La stazione ha smesso di trasmettere la notte in cui è cominciata la guerra. Nessuno sa perché.',
-      'Non so da dove si comincia a riparare un segnale. So solo che non posso restare ferma ad aspettare.',
+      'Non so niente di reti. Non so da dove si comincia.',
+      'So solo che non posso restare ferma ad aspettare.',
     ],
   },
   {
@@ -76,8 +76,7 @@ const SHOTS: Shot[] = [
     from: { x: 0.4, y: 0.55, s: 1.05 }, to: { x: 0.55, y: 0.35, s: 1.25 },
     lines: [
       'Dentro, tutto era rimasto fermo a quella notte.',
-      'E da qualche parte, nel buio, qualcosa sembrava aspettare.',
-      'Un pezzo alla volta. Finché qualcuno, da qualche parte, risponderà.',
+      'E nel buio, qualcosa teneva la stazione in silenzio.',
     ],
   },
 ];

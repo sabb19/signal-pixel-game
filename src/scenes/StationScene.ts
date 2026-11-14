@@ -227,14 +227,19 @@ export class StationScene extends Phaser.Scene {
     Audio.boot();
     this.iris.say([
       'IRIS: ...alimentazione ripristinata. Sessione 0412... interrotta.',
-      'IRIS: Utente non riconosciuto. Identificarsi.',
-      'MYRA: Mi chiamo Myra. Io... cerco un segnale.',
-      'IRIS: Nessun operatore in servizio da 214 giorni. Assegno accesso temporaneo: MYRA.',
-      'IRIS: Sono I.R.I.S., sistema di supervisione della stazione. Collegamento satellitare: assente.',
-      'MYRA: Puoi chiamare qualcuno? Chiunque?',
-      'IRIS: Negativo. Questa console non raggiunge nemmeno il gateway della rete locale.',
-      'MYRA: Non so cosa sia un gateway.',
-      'IRIS: ...Allora cominceremo da lì. Prima ti mostro dove siamo.',
+      'IRIS: Utente non registrato. Chi sei?',
+      'MYRA: Myra. Myra Kovalenko.',
+      'IRIS: Kovalenko. ...Oleh Kovalenko era il tecnico di turno.',
+      'MYRA: Era mio padre.',
+      'IRIS: ...',
+      'IRIS: Sono I.R.I.S., il sistema di supporto della stazione. La rete è stata modificata la notte dell\'attacco.',
+      'IRIS: Indirizzi sbagliati, porte spente, strade che non portano da nessuna parte. E qualcosa è ancora dentro.',
+      'IRIS: Lo chiamo SILENCE. È un\'arma della guerra. Il suo unico scopo è che nessuno trasmetta.',
+      'MYRA: Allora lo riparo. Devo parlare con mia madre.',
+      'IRIS: Non ancora. Un errore sulla rete vera, e SILENCE se ne accorge.',
+      'IRIS: Prima ti alleno. Ho ricostruito la rete in simulazione: ogni volta diversa, così impari dove si rompe.',
+      'MYRA: Non so niente di reti.',
+      'IRIS: Lo so. Cominceremo dal primo pezzo. Prima ti mostro la strada che deve fare il tuo messaggio.',
     ], () => { this.save(); this.openPath('intro'); });
   }
 
