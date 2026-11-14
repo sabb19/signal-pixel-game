@@ -10,13 +10,14 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('boot'); }
 
   preload() {
-    // anteprima dello stile illustrato (non pixel): ?stile=illustrato
-    const ill = new URLSearchParams(location.search).get('stile') === 'illustrato';
-    this.load.image('room-control', ill ? 'assets/alt/control_room.png' : 'assets/rooms/control_room.png');
+    // anteprime di stile (non pixel): ?stile=illustrato · ?stile=hades
+    const stile = new URLSearchParams(location.search).get('stile');
+    const alt = stile === 'illustrato' ? 'assets/alt/' : stile === 'hades' ? 'assets/alt-hades/' : '';
+    this.load.image('room-control', alt ? alt + 'control_room.png' : 'assets/rooms/control_room.png');
     this.load.image('room-lab', 'assets/rooms/lab.png');
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
-    this.load.image('keyart', ill ? 'assets/alt/keyart.png' : 'assets/story/keyart.png');
+    this.load.image('keyart', alt ? alt + 'keyart.png' : 'assets/story/keyart.png');
     ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
     // barra di caricamento
     const bar = this.add.rectangle(220, 180, 0, 4, 0x3fa7b5).setOrigin(0, 0.5);
