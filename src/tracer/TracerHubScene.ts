@@ -4,7 +4,7 @@ import { P, hex } from '../core/palette';
 import { FONT_MONO, FONT_UI } from '../core/fonts';
 import { Audio } from '../audio/AudioManager';
 import { LEVELS, Difficulty } from './levels';
-import { loadStars, totalStars, rank } from './progress';
+import { loadStars, totalStars, rank, totalXp, badges, sprintBest, BADGES } from './progress';
 
 // SIMULATORE I.R.I.S. — l'hub: i livelli già affrontati si rigiocano con reti sempre nuove
 // e tre difficoltà, pensate per tre pubblici: studenti, junior IT, esperti.
@@ -39,6 +39,10 @@ export class TracerHubScene extends Phaser.Scene {
     this.rows = LEVELS.map((l, i) => this.add.text(30, 116 + i * 30, '', { fontFamily: FONT_MONO, fontSize: '12px', color: hex(P.cream) })
       .setInteractive({ useHandCursor: true }).on('pointerover', () => { this.sel = i; this.refresh(); }).on('pointerdown', () => this.start()));
     const locked = ['2 · FILTRO   (VLAN, ACL, NAT)', '3 · INDAGINE (registri, show, tracce)', 'FINALE · DIFESA E ATTACCO'];
+    // sfida lampo + distintivi
+    this.add.text(VIEW_W - 30, 70, `XP ${totalXp()}   ·   distintivi ${badges().length}/${Object.keys(BADGES).length}`, { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cyan3) }).setOrigin(1, 0);
+    this.add.text(VIEW_W - 30, 214, `⚡ SUBNET SPRINT  (S)\nsfida lampo di 60 s · record ${sprintBest()}`, { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.lamp2), align: 'right', backgroundColor: '#1a2633', padding: { x: 8, y: 5 } })
+      .setOrigin(1, 0).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.start('sprint'));
     locked.forEach((t, i) => this.add.text(30, 210 + i * 16, `🔒 ${t}  — si sblocca nella storia`, { fontFamily: FONT_MONO, fontSize: '10px', color: hex(P.metal) }));
 
     this.diffText = this.add.text(VIEW_W / 2, 276, '', { fontFamily: FONT_MONO, fontSize: '13px', color: hex(P.cream) }).setOrigin(0.5, 0);
@@ -52,6 +56,7 @@ export class TracerHubScene extends Phaser.Scene {
       else if (e.key === 'ArrowRight') this.d = (this.d + 1) % DIFFS.length;
       else if (e.key === 'Enter' || e.key === ' ') return this.start();
       else if (e.key === 'Escape') return this.scene.start('title');
+      else if (e.key === 's' || e.key === 'S') return this.scene.start('sprint');
       else return;
       Audio.click();
       this.refresh();

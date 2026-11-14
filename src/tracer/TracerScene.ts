@@ -6,7 +6,8 @@ import { Audio } from '../audio/AudioManager';
 import { Net, Device, dev, ifaceOf, isHost, linkUp, Leg, prefixOf, intToIp, netOf } from './model';
 import { CliState, runRouter, runPc, prompt, CliOut, showRoute } from './cli';
 import { makeLevel, Level, Difficulty, LEVELS } from './levels';
-import { recordStars } from './progress';
+import { recordStars, addXp, earnBadge, BADGES } from './progress';
+import { pickAttack, Attack } from './attacks';
 
 // IRIS TRACER — interfaccia ispirata a Cisco Packet Tracer:
 // barra dei menu, area di lavoro "Logica" chiara con griglia, pannello Attività (obiettivi),
@@ -55,6 +56,19 @@ export class TracerScene extends Phaser.Scene {
   private win?: Phaser.GameObjects.Container;
   private winRows: Phaser.GameObjects.Text[] = [];
   private tut?: Phaser.GameObjects.Container;
+  // --- gioco: salute della rete, attacchi di SILENCE, punti e serie
+  private health = 100;
+  private xp = 0;
+  private streak = 0;
+  private attack?: { a: Attack; at: number };
+  private attacksDone = 0;
+  private nextAttackAt = 0;
+  private lost = false;
+  private prevMet: boolean[] = [];
+  private hud!: Phaser.GameObjects.Graphics;
+  private hudText!: Phaser.GameObjects.Text;
+  private xpText!: Phaser.GameObjects.Text;
+  private alert?: Phaser.GameObjects.Container;
 
   constructor() { super('tracer'); }
 
@@ -72,6 +86,8 @@ export class TracerScene extends Phaser.Scene {
     this.net = this.lv.net;
     this.sel = undefined; this.terms = {}; this.sim = false; this.busy = false; this.won = false; this.win = undefined; this.tut = undefined;
     this.pinged = new Set(); this.hintsUsed = 0; this.hintLevel = 0; this.guideStep = 0; this.simLog = [];
+    this.health = 100; this.xp = 0; this.streak = 0; this.attack = undefined; this.attacksDone = 0; this.lost = false; this.alert = undefined;
+    this.nextAttackAt = this.diff === 'esperto' ? 30 : 45;
     const meta = LEVELS.find((l) => l.id === this.levelId)!;
 
     const g = this.add.graphics();
@@ -86,6 +102,9 @@ export class TracerScene extends Phaser.Scene {
     this.tool(140, 'Aiuto (H)', () => this.hint(), this.diff === 'esperto');
     this.tool(196, 'Tutorial', () => this.startTutorial(), false);
     this.tool(246, 'Esci (Esc)', () => this.leave(), false);
+    this.hud = this.add.graphics().setDepth(2);
+    this.hudText = this.t(304, 17.5, 'RETE', C.text, 8, true);
+    this.xpText = this.t(440, 17.5, '', C.blueT, 8.5, true);
 
     // area di lavoro "Logica"
     g.fillStyle(C.ws).fillRect(WS.x, WS.y, WS.w, WS.h);
@@ -105,6 +124,7 @@ export class TracerScene extends Phaser.Scene {
     this.topo = this.add.graphics();
     this.ring = this.add.graphics().setDepth(5);
     this.buildActivity();
+    this.prevMet = this.lv.objectives.map(() => false);
     this.iris = new IrisDialog(this);
 
     this.drawTopology();
@@ -472,7 +492,7 @@ export class TracerScene extends Phaser.Scene {
   private onKey(e: KeyboardEvent) {
     if (this.iris.open) { if (['e', 'E', ' ', 'Enter'].includes(e.key)) this.iris.advance(); return; }
     if (this.tut) { if (e.key === 'Escape') this.tutSkip?.(); else if (['Enter', ' ', 'e', 'E'].includes(e.key)) this.tutNext?.(); return; }
-    if (this.won) { if (e.key === 'Enter') this.next(); else if (e.key === 'Escape') this.leave(); return; }
+    if (this.won) { if (e.key === 'Enter') (this.lost ? this.scene.restart({ level: this.levelId, diff: this.diff }) : this.next()); else if (e.key === 'Escape') this.leave(); return; }
     if (this.busy) return;
     if (!this.sel) {
       if (e.key === 'Escape') return this.leave();
@@ -503,7 +523,12 @@ export class TracerScene extends Phaser.Scene {
     const out: CliOut = isHost(d) ? runPc(this.net, d, raw) : runRouter(this.net, d, T.st, raw);
     out.lines.forEach((l) => this.print(id, l.t, l.kind === 'err' ? 'err' : l.kind === 'ok' ? 'ok' : 'out'));
     if (out.event === 'concept-error') Audio.error();
+    const failed = out.lines.some((l) => l.kind === 'err');
+    if (failed) this.streak = 0;
+    else if (out.event && !out.ping) this.reward(id, 5, false);
+    const before = this.guideStep;
     this.advanceGuide(id, raw);
+    if (this.guideStep > before) this.reward(id, 10, false);
     this.drawTopology();
     if (out.ping) return this.animatePing(id, out);
     this.refreshWindow();
@@ -525,6 +550,8 @@ export class TracerScene extends Phaser.Scene {
         for (let i = 0; i < 4; i++) this.print(id, `Reply from ${dst}: bytes=32 time<1ms TTL=${126 - i % 2}`, 'ok');
         this.print(id, 'Ping statistics: Sent = 4, Received = 4, Lost = 0 (0% loss)', 'ok');
         this.pinged.add(`${out.ping!.from}>${dst}`);
+        this.reward(id, 20, true);
+        this.badge('primo-ping');
         Audio.confirm();
       } else {
         const leg = result.go.ok ? result.back! : result.go;
@@ -576,12 +603,121 @@ export class TracerScene extends Phaser.Scene {
   }
 
   // --- Vittoria e stelle
+  // --- Gioco: punti, serie, distintivi, attacchi
+  private reward(devId: string, base: number, big: boolean) {
+    this.streak++;
+    const mult = this.streak >= 6 ? 3 : this.streak >= 3 ? 2 : 1;
+    const pts = base * mult;
+    this.xp += pts; addXp(pts);
+    if (this.streak === 5) this.badge('serie-5');
+    const p = this.pos(dev(this.net, devId));
+    this.popup(p.x, p.y - 30, `+${pts}${mult > 1 ? ` ×${mult}` : ''}`, big ? '#1f8a3e' : '#1e6fb8', big ? 12 : 10);
+  }
+
+  private popup(x: number, y: number, s: string, color: string, size = 10) {
+    const t = this.t(x, y, s, color, size, true).setOrigin(0.5).setDepth(60).setStroke('#ffffff', 3);
+    this.tweens.add({ targets: t, y: y - 22, alpha: 0, duration: 1100, ease: 'Sine.out', onComplete: () => t.destroy() });
+  }
+
+  private badge(id: string) {
+    if (!earnBadge(id)) return;
+    const b = BADGES[id];
+    const c = this.add.container(VIEW_W / 2, WS.y + 18).setDepth(70).setAlpha(0);
+    const tx = this.t(0, 0, `🏅 Distintivo: ${b.name} — ${b.desc}`, '#5a3d00', 9, true).setOrigin(0.5);
+    const g = this.add.graphics().fillStyle(0xffd76a).fillRoundedRect(-tx.width / 2 - 10, -9, tx.width + 20, 18, 9).lineStyle(1, 0xc9962a).strokeRoundedRect(-tx.width / 2 - 10, -9, tx.width + 20, 18, 9);
+    c.add([g, tx]);
+    Audio.confirm();
+    this.tweens.add({ targets: c, alpha: 1, y: WS.y + 26, duration: 300, hold: 2600, yoyo: true, onComplete: () => c.destroy() });
+  }
+
+  private objectivesTick() {
+    this.lv.objectives.forEach((o, i) => {
+      const m = this.met(o);
+      if (m && !this.prevMet[i] && this.startTime) {
+        const [x, y] = (this.act as unknown as { box: number[] }).box;
+        this.xp += 50; addXp(50);
+        this.popup(x + 95, y + 30 + i * 22, '+50 obiettivo', '#1f8a3e', 11);
+        this.health = Math.min(100, this.health + 10);
+      }
+      this.prevMet[i] = m;
+    });
+  }
+
+  private doAttack() {
+    const a = pickAttack(this.net);
+    this.attacksDone++;
+    if (!a) return;
+    this.attack = { a, at: this.time.now };
+    this.drawTopology();
+    this.refreshWindow();
+    Audio.error();
+    this.cameras.main.shake(350, 0.006);
+    const p = this.pos(dev(this.net, a.target));
+    const burst = this.add.circle(p.x, p.y, 8, C.bad, 0.5).setDepth(30);
+    this.tweens.add({ targets: burst, radius: 46, alpha: 0, duration: 700, onComplete: () => burst.destroy() });
+    this.alert?.destroy();
+    const msg = `⚠ SILENCE · ${this.diff === 'esperto' ? a.vague : a.desc}`;
+    const c = this.add.container(8, WS.y + 18).setDepth(45);
+    const tx = this.t(10, 0, msg, '#ffffff', 9, true).setOrigin(0, 0.5);
+    const g = this.add.graphics().fillStyle(C.bad).fillRoundedRect(0, -9, tx.width + 20, 18, 4);
+    c.add([g, tx]);
+    this.tweens.add({ targets: c, alpha: 0.55, duration: 450, yoyo: true, repeat: -1 });
+    this.alert = c;
+  }
+
+  private attackTick() {
+    if (!this.attack) return;
+    if (!this.attack.a.fixed(this.net)) return;
+    const secs = (this.time.now - this.attack.at) / 1000;
+    this.alert?.destroy(); this.alert = undefined;
+    const p = this.pos(dev(this.net, this.attack.a.target));
+    this.attack = undefined;
+    this.health = Math.min(100, this.health + 15);
+    this.xp += 40; addXp(40);
+    this.popup(p.x, p.y - 34, 'Attacco respinto! +40', '#1f8a3e', 11);
+    if (secs < 20) this.badge('contrattacco');
+    this.nextAttackAt = (this.time.now - this.startTime) / 1000 + 30;
+  }
+
+  private lose() {
+    this.lost = true; this.won = true;
+    this.closeWin();
+    Audio.error();
+    const box = this.add.container(VIEW_W / 2, 150).setDepth(50);
+    const g = this.add.graphics();
+    g.fillStyle(0xffffff).fillRoundedRect(-170, -60, 340, 120, 6).lineStyle(1, C.line).strokeRoundedRect(-170, -60, 340, 120, 6);
+    g.fillStyle(C.bad).fillRoundedRect(-170, -60, 340, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
+    box.add([g, this.t(0, -56, 'SILENCE ha isolato la rete', '#ffffff', 9.5, true).setOrigin(0.5, 0),
+      this.add.text(0, -24, 'La salute della rete è arrivata a zero.\nOgni guasto aperto la fa scendere: ripara prima quello che blocca di più.', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, align: 'center' }).setOrigin(0.5, 0),
+      this.t(0, 30, 'INVIO riprova · Esc torna a IRIS', C.blueT, 9, true).setOrigin(0.5, 0)]);
+  }
+
+  private drawHud() {
+    const x = 330, y = 18, w = 100, h = 9;
+    const col = this.health > 60 ? C.ok : this.health > 30 ? C.warn : C.bad;
+    this.hud.clear().fillStyle(0xd5dae0).fillRoundedRect(x, y, w, h, 4).fillStyle(col).fillRoundedRect(x, y, Math.max(3, w * this.health / 100), h, 4);
+    this.xpText.setText(`XP ${this.xp}${this.streak >= 3 ? `   serie ×${this.streak >= 6 ? 3 : 2}` : ''}`);
+  }
+
   private checkWin() {
+    this.objectivesTick();
+    this.attackTick();
     this.refreshActivity();
-    if (this.won || !this.lv.objectives.every((o) => this.met(o))) return;
+    if (this.won || this.attack || !this.lv.objectives.every((o) => this.met(o))) return;
     this.won = true;
+    this.alert?.destroy();
     const secs = Math.round((this.time.now - this.startTime) / 1000);
-    const stars = 1 + (this.hintsUsed === 0 ? 1 : 0) + (secs <= this.lv.parTime ? 1 : 0);
+    const healthy = this.health >= 50;
+    const stars = 1 + (this.hintsUsed === 0 ? 1 : 0) + (healthy ? 1 : 0);
+    if (this.hintsUsed === 0) this.badge('zero-aiuti');
+    if (this.diff === 'esperto') this.badge('esperto');
+    this.xp += 100 * stars; addXp(100 * stars);
+    // onda verde: la rete torna viva, dispositivo dopo dispositivo
+    this.net.devices.forEach((d, i) => {
+      const p = this.pos(d);
+      const c = this.add.circle(p.x, p.y, 6, C.ok, 0.45).setDepth(30);
+      this.tweens.add({ targets: c, radius: 40, alpha: 0, delay: i * 120, duration: 700, onComplete: () => c.destroy() });
+    });
     recordStars(this.levelId, this.diff, stars);
     this.drawRing();
     this.time.delayedCall(600, () => {
@@ -592,7 +728,7 @@ export class TracerScene extends Phaser.Scene {
       g.fillStyle(C.ok).fillRoundedRect(-180, -75, 360, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
       const t1 = this.t(0, -71, 'Attività completata · rete funzionante', '#ffffff', 9.5, true).setOrigin(0.5, 0);
       const t2 = this.t(0, -40, '★'.repeat(stars) + '☆'.repeat(3 - stars), '#f0a020', 28, true).setOrigin(0.5, 0);
-      const t3 = this.t(0, 4, `★ completato    ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti    ${secs <= this.lv.parTime ? '★' : '☆'} entro ${this.lv.parTime}s (${secs}s)`, C.text, 8.5).setOrigin(0.5, 0);
+      const t3 = this.t(0, 4, `★ completato    ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti    ${healthy ? '★' : '☆'} rete sopra il 50%\nXP guadagnati: ${this.xp} · tempo ${secs}s`, C.text, 8.5).setOrigin(0.5, 0).setAlign('center');
       const hasNext = LEVELS.findIndex((l) => l.id === this.levelId) < LEVELS.length - 1;
       const t4 = this.t(0, 44, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, C.blueT, 9, true).setOrigin(0.5, 0);
       box.add([g, t1, t2, t3, t4]);
@@ -615,6 +751,18 @@ export class TracerScene extends Phaser.Scene {
   update(_t: number, dt: number) {
     this.iris.update(dt);
     if (this.win && this.tab === 'cli' && !this.iris.open) this.refreshWindow();
+    this.drawHud();
+    if (this.startTime && !this.won && !this.tut && !this.iris.open) {
+      const el = (this.time.now - this.startTime) / 1000;
+      const open = this.lv.objectives.filter((o) => !this.met(o)).length / this.lv.objectives.length;
+      const decay = ({ studente: 0.25, junior: 0.5, esperto: 0.9 } as const)[this.diff];
+      this.health -= (decay * open + (this.attack ? 1.6 : 0)) * dt / 1000;
+      if (this.health <= 0) { this.health = 0; this.lose(); }
+      const maxAttacks = this.diff === 'junior' ? 1 : this.diff === 'esperto' ? 3 : 0;
+      const progressed = this.prevMet.some(Boolean) || el > 60;
+      if (!this.attack && !this.busy && this.attacksDone < maxAttacks && el > this.nextAttackAt && progressed) this.doAttack();
+      this.attackTick();
+    }
     if (this.startTime && !this.won) {
       const s = Math.round((this.time.now - this.startTime) / 1000);
       this.timerText.setText(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`).setColor(s > this.lv.parTime ? C.badT : C.text);

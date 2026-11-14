@@ -62,3 +62,29 @@ describe('iris tracer', () => {
     runRouter(lv.net, r, st, 'end'); expect(st.mode).toBe('priv');
   });
 });
+
+describe('attacchi di SILENCE', () => {
+  it('ogni attacco rompe qualcosa che funzionava e si può riparare', async () => {
+    const { pickAttack } = await import('../src/tracer/attacks');
+    for (let k = 0; k < 20; k++) {
+      const lv = makeLevel('1.3', 'studente');
+      lv.guide.forEach((g) => run(lv, g.device!, [g.cmd!]));
+      expect(allDone(lv)).toBe(true);
+      const a = pickAttack(lv.net)!;
+      expect(a).not.toBeNull();
+      expect(a.fixed(lv.net)).toBe(false);
+    }
+  });
+});
+
+describe('subnet sprint', () => {
+  it('la risposta corretta è coerente con la rete', async () => {
+    const { makeQuestion } = await import('../src/tracer/sprint');
+    const { parseIp } = await import('../src/tracer/model');
+    for (let k = 0; k < 500; k++) {
+      const q = makeQuestion();
+      const ip = parseIp(q.ip)!, first = parseIp(q.first)!, last = parseIp(q.last)!;
+      expect(ip >= first && ip <= last).toBe(q.inside);
+    }
+  });
+});
