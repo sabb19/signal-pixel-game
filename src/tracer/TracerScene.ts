@@ -74,9 +74,12 @@ export class TracerScene extends Phaser.Scene {
 
   constructor() { super('tracer'); }
 
-  init(data: { level?: string; diff?: Difficulty }) {
+  // story: aperto dalla console della stazione (campagna 1.1 → 1.3), poi si torna alla storia
+  private story = false;
+  init(data: { level?: string; diff?: Difficulty; story?: boolean }) {
     this.levelId = data?.level ?? '1.1';
     this.diff = data?.diff ?? 'studente';
+    this.story = !!data?.story;
   }
 
   private t(x: number, y: number, s: string, color = C.text, size = 9, bold = false, mono = false) {
@@ -761,7 +764,8 @@ export class TracerScene extends Phaser.Scene {
       const t2 = this.t(0, -40, '★'.repeat(stars) + '☆'.repeat(3 - stars), '#f0a020', 28, true).setOrigin(0.5, 0);
       const t3 = this.t(0, 4, `★ completato    ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti    ${healthy ? '★' : '☆'} rete sopra il 50%\nXP guadagnati: ${this.xp} · tempo ${secs}s`, C.text, 8.5).setOrigin(0.5, 0).setAlign('center');
       const hasNext = LEVELS.findIndex((l) => l.id === this.levelId) < LEVELS.length - 1;
-      const t4 = this.t(0, 44, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, C.blueT, 10.5, true).setOrigin(0.5, 0);
+      const back = this.story ? 'torna alla stazione' : 'torna a IRIS';
+      const t4 = this.t(0, 44, `${hasNext ? 'INVIO livello successivo · ' : this.story ? 'INVIO torna alla stazione · ' : ''}Esc ${back}`, C.blueT, 10.5, true).setOrigin(0.5, 0);
       box.add([g, t1, t2, t3, t4]);
       this.bottomText.setText('');
       this.iris.say([`IRIS: ${this.lv.concept}: fatto. ${stars === 3 ? 'Perfetto.' : 'Rigiocalo: la prossima volta la rete sarà diversa.'}`]);
@@ -770,13 +774,25 @@ export class TracerScene extends Phaser.Scene {
 
   private next() {
     const i = LEVELS.findIndex((l) => l.id === this.levelId);
-    if (i < LEVELS.length - 1) this.scene.restart({ level: LEVELS[i + 1].id, diff: this.diff });
+    if (i < LEVELS.length - 1) this.scene.restart({ level: LEVELS[i + 1].id, diff: this.diff, story: this.story });
+    else if (this.story) this.backToStory(true);
     else this.leave();
   }
 
   private leave() {
+    if (this.story) return this.backToStory(false);
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('tracerhub'));
+  }
+
+  private backToStory(completed: boolean) {
+    const i = LEVELS.findIndex((l) => l.id === this.levelId);
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.stop();
+      this.scene.get('station').events.emit('minigame-closed', { id: 'tracer', completed, mission: completed ? 0 : i, diff: this.diff });
+      this.scene.resume('station');
+    });
   }
 
   update(_t: number, dt: number) {

@@ -110,9 +110,9 @@ export class StationScene extends Phaser.Scene {
     this.player = new Player(this, start.x, start.y);
     this.physics.add.collider(this.player, this.walls);
 
-    const cam = this.cameras.main;
-    cam.setBounds(0, 0, W, H);
-    cam.startFollow(this.player, true, 0.1, 0.1);
+    // camera: segue Myra a mano (il gioco è disegnato a doppia risoluzione, camera con zoom 2 e origine in alto a sinistra)
+    this.worldW = W; this.worldH = H; this.camPoint = undefined;
+    this.followCam(1);
 
     this.add.particles(0, 0, 'px', {
       x: { min: 0, max: W }, y: { min: 0, max: H },
@@ -151,7 +151,7 @@ export class StationScene extends Phaser.Scene {
     Audio.setMusic('station');
     this.applyPower(true);
     if (this.roomId === 'lab' && this.state.flags.nightStarted && !this.state.flags.nightDone) this.setNight(true, true);
-    cam.fadeIn(1200, 0, 0, 0);
+    this.cameras.main.fadeIn(1200, 0, 0, 0);
     this.startPos = { x: this.player.x, y: this.player.y };
 
     if (!this.state.flags.power) {
@@ -298,8 +298,13 @@ export class StationScene extends Phaser.Scene {
       return;
     }
     if (s.id === 'console' && f.power && !f.irisAwake) { this.tutHide(); this.wakeIris(); return; }
-    if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) return this.openMinigame('netdefender', 'ndMission');
-    if (s.id === 'console' && f.gatewayRestored) return this.offerReplay('netdefender', 'IRIS: La rete locale funziona. Vuoi rifare le prove di configurazione?');
+    if (s.id === 'console' && f.irisAwake && !f.gatewayRestored) return this.openTracer();
+    if (s.id === 'console' && f.gatewayRestored) return this.iris.say(['IRIS: Il simulatore è sempre acceso. Vuoi allenarti?'], () => this.iris.choose(['Apri il Simulatore I.R.I.S.', 'Non ora'], (i) => {
+      if (i !== 0) return;
+      this.save();
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('tracerhub'));
+    }));
 
     const dark = !f.power;
     const lines: Record<string, string[]> = {
@@ -409,8 +414,31 @@ export class StationScene extends Phaser.Scene {
     }));
   }
 
+  // Capitolo 1: le simulazioni di IRIS alla console (IRIS Tracer, livelli 1.1 → 1.3)
+  private openTracer() {
+    const f = this.state.flags as unknown as Record<string, number | string>;
+    const lv = ['1.1', '1.2', '1.3'][Number(f.trLevel ?? 0)] ?? '1.1';
+    const go = (diff: string) => {
+      f.trDiff = diff;
+      this.save();
+      this.player.setVelocity(0, 0);
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => { this.scene.pause(); this.scene.launch('tracer', { level: lv, diff, story: true }); });
+    };
+    if (f.trDiff && Number(f.trLevel ?? 0) > 0) return this.iris.say([`IRIS: Riprendiamo dalla simulazione ${lv}.`], () => go(String(f.trDiff)));
+    this.iris.say([
+      'IRIS: Prima della rete vera, le simulazioni. Ho ricostruito la rete della stazione: ogni volta un po\' diversa.',
+      'IRIS: Quanto vuoi che ti guidi?',
+    ], () => this.iris.choose(['Studente · guidami passo passo', 'Junior IT · solo gli obiettivi', 'Esperto · nessun aiuto'], (i) => go(['studente', 'junior', 'esperto'][i])));
+  }
+
   private onMinigameClosed(r: { id: string; completed: boolean; mission: number }) {
     this.cameras.main.fadeIn(500, 0, 0, 0);
+    if (r.id === 'tracer') {
+      (this.state.flags as unknown as Record<string, number>).trLevel = r.completed ? 0 : r.mission;
+      if (!r.completed) { this.save(); return; }
+      r = { ...r, id: 'netdefender' }; // stessa conseguenza nella storia: rete locale riparata
+    }
     if (this.replaying) { this.replaying = false; if (r.completed) this.iris.say(['IRIS: Prove superate di nuovo. Non ti sei dimenticata niente.']); return; }
     if (r.id === 'packettrace') return this.onPacketTraceClosed(r);
     if (r.id === 'firewall') return this.onFirewallClosed(r);
@@ -592,8 +620,7 @@ export class StationScene extends Phaser.Scene {
       this.player.setPosition(1135 * S, 600 * S);
       this.player.anims.stop();
       this.player.setFrame('right-0');
-      this.cameras.main.stopFollow();
-      this.cameras.main.pan(1250 * S, 600 * S, 2500, 'Sine.easeInOut');
+      this.camPoint = { x: 1250 * S, y: 600 * S };
       this.time.delayedCall(1800, () => {
         this.paused = false;
         this.iris.say([
@@ -656,7 +683,7 @@ export class StationScene extends Phaser.Scene {
     const f = this.state.flags;
     this.paused = true;
     this.card('Mattina.', 900, () => {
-      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      this.camPoint = undefined;
       f.nightDone = true; f.fatherTape = true;
       this.setNight(false, true);
       this.applyPower(true);
@@ -728,7 +755,19 @@ export class StationScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.events.off('update', onUpdate));
   }
 
+  private worldW = 0;
+  private worldH = 0;
+  private camPoint?: { x: number; y: number };
+  private followCam(lerp: number) {
+    const cam = this.cameras.main;
+    const t = this.camPoint ?? { x: this.player.x, y: this.player.y - 20 };
+    const tx = Phaser.Math.Clamp(t.x - VIEW_W / 2, 0, Math.max(0, this.worldW - VIEW_W));
+    const ty = Phaser.Math.Clamp(t.y - VIEW_H / 2, 0, Math.max(0, this.worldH - VIEW_H));
+    cam.setScroll(cam.scrollX + (tx - cam.scrollX) * lerp, cam.scrollY + (ty - cam.scrollY) * lerp);
+  }
+
   update(_t: number, dt: number) {
+    this.followCam(this.camPoint ? 0.03 : 0.12);
     const k = this.keys;
     this.player.frozen = this.iris.open || this.paused;
     this.player.move({
