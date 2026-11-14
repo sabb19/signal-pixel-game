@@ -46,6 +46,7 @@ export class TitleScene extends Phaser.Scene {
     this.items = [
       ...(hasSave ? [{ label: 'Continua', action: () => this.go('station') }] : []),
       { label: 'Nuova partita', action: () => { clearSave(); this.go('intro'); } },
+      { label: 'Simulatore I.R.I.S.', action: () => this.go('tracerhub') },
       { label: 'Impostazioni', action: () => { Audio.click(); this.scene.pause(); this.scene.launch('settings', { from: 'title' }); } },
     ];
     this.texts = this.items.map((it, i) =>

@@ -31,7 +31,8 @@ export class BootScene extends Phaser.Scene {
     loadFonts().then(() => {
       const q = new URLSearchParams(location.search);
       // Scorciatoia di sviluppo: ?nd=1|2|3 apre Network Defender alla missione indicata
-      if (import.meta.env.DEV && q.has('fw')) {
+      if (q.has('tracer')) { this.scene.start('tracerhub'); return; }
+    if (import.meta.env.DEV && q.has('fw')) {
       const m = Phaser.Math.Clamp(Number(q.get('fw')) || 1, 1, 3) - 1;
       writeSave({ act: 1, flags: { power: true, irisAwake: true, tutorialDone: true, gatewayRestored: true, doorServer: true, labVisited: true, routingRestored: true, nightStarted: true, nightDone: true, commsVisited: true, fwMission: m }, room: 'comms', x: 384, y: 240 });
       const mgr = this.game.scene;
