@@ -13,13 +13,11 @@ export class BootScene extends Phaser.Scene {
     // ogni versione pubblicata ricarica anche le immagini (niente codice nuovo con immagini vecchie, o viceversa)
     const L = this.load, img = L.image.bind(L);
     (L as unknown as { image: (k: string, u: string) => unknown }).image = (k: string, u: string) => img(k, `${u}?v=${__BUILD__}`);
-    // anteprima dello stile graphic novel: ?stile=hades (lo stile predefinito è l'illustrato morbido)
-    const alt = new URLSearchParams(location.search).get('stile') === 'hades' ? 'assets/alt-hades/' : '';
-    this.load.image('room-control', alt ? alt + 'control_room.png' : 'assets/rooms/control_room.png');
+    this.load.image('room-control', 'assets/rooms/control_room.png');
     this.load.image('room-lab', 'assets/rooms/lab.png');
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
-    this.load.image('keyart', alt ? alt + 'keyart.png' : 'assets/story/keyart.png');
+    this.load.image('keyart', 'assets/story/keyart.png');
     ['c1_radio', 'c2_phone', 'c3_map', 'c2_dish', 'c5_journey', 'c4_refuge', 'c6_inside', 'c7_crowd', 'c8_silence', 'c9_mic', 'c10_dawn'].forEach((k) => this.load.image(k, `assets/story/${k}.png`));
     // barra di caricamento
     const bar = this.add.rectangle(220, 180, 0, 4, 0x3fa7b5).setOrigin(0, 0.5);
@@ -76,24 +74,18 @@ export class BootScene extends Phaser.Scene {
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2];
-      // magenta → trasparente; sui bordi sfumati la parte magenta viene tolta dal colore (niente alone viola)
-      const m = (r + b) / 2 - g;
-      if (m > 70 && r > 120 && b > 120) { d[i + 3] = 0; continue; }
-      if (m > 25 && r > 70 && b > 70) {
-        const k = Math.min(1, (m - 25) / 45);
-        d[i + 3] = Math.round(d[i + 3] * (1 - k));
-        d[i] = Math.min(r, g + 40); d[i + 2] = Math.min(b, g + 40);
-      }
+      // magenta e i suoi bordi sfumati diventano trasparenti
+      if (r > 140 && b > 140 && g < 110 && Math.abs(r - b) < 90) d[i + 3] = 0;
     }
     ctx.putImageData(img, 0, 0);
     tex.refresh();
     tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
     // griglia 4×2: colonne giù, sinistra, destra, su; riga 0 fermo, riga 1 passo
-    tex.add('face', 0, 172, 18, 120, 112); // ritratto per i dialoghi
+    tex.add('face', 0, 160, 95, 130, 120); // ritratto per i dialoghi
     const dirs = ['down', 'left', 'right', 'up'];
     dirs.forEach((dir, c) => {
-      tex.add(`${dir}-0`, 0, c * 384, 4, 384, 424);
-      tex.add(`${dir}-1`, 0, c * 384, 432, 384, 424);
+      tex.add(`${dir}-0`, 0, c * 384, 38, 384, 352);
+      tex.add(`${dir}-1`, 0, c * 384, 418, 384, 352);
     });
   }
 }
