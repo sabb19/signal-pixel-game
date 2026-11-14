@@ -9,9 +9,11 @@ import { Audio } from '../audio/AudioManager';
 // Due camere: "mondo" (carrelli, zoom, rallentatore) e "interfaccia" (bande nere e sottotitoli, mai deformati).
 const K = VIEW_H / 768;            // scala dello sfondo (1792×768 → altezza 360)
 const WORLD_W = 1792 * K;
-const LANE_FRONT = 330, LANE_MID = 292, LANE_FAR = 268;
+const LANE_FRONT = 332, LANE_MID = 296, LANE_FAR = 281;
+// colonne della pensilina (pixel dell'immagine): [x, larghezza, base]. Ritagliate dallo sfondo e ordinate in profondità
+const PILLARS: [number, number, number][] = [[795, 105, 645], [705, 70, 560], [645, 52, 530], [612, 36, 505], [178, 80, 535], [258, 55, 520]];
 
-interface Walker { s: Phaser.GameObjects.Sprite; v: number }
+interface Walker { s: Phaser.GameObjects.Sprite; v: number; base: number; ph: number }
 
 export class CineStationScene extends Phaser.Scene {
   private view = { cx: VIEW_W / 2, cy: VIEW_H / 2, z: 1 };   // centro e ingrandimento della camera del mondo
@@ -43,6 +45,13 @@ export class CineStationScene extends Phaser.Scene {
 
     // --- mondo
     this.add.image(0, 0, 'cine-station_bg').setOrigin(0).setScale(K).setDepth(-100);
+    // colonne in primo piano rispetto a chi ci passa dietro
+    const bgTex = this.textures.get('cine-station_bg');
+    PILLARS.forEach(([x, w, base], i) => {
+      const top = base - 250; // solo il fusto basso: niente tetto né lampioni nel ritaglio
+      if (!bgTex.has(`pil${i}`)) bgTex.add(`pil${i}`, 0, x, top, w, base - top);
+      this.add.image(x * K, top * K, 'cine-station_bg', `pil${i}`).setOrigin(0).setScale(K).setDepth(base * K);
+    });
     // bagliore degli incendi in città
     this.fire = this.add.image(1250 * K, 255 * K, 'glow').setScale(9, 3).setTint(0xff5a1f).setAlpha(0.25).setBlendMode(Phaser.BlendModes.ADD).setDepth(-90);
     this.tweens.add({ targets: this.fire, alpha: 0.4, duration: 260, yoyo: true, repeat: -1, repeatDelay: 500, ease: 'Sine.inOut' });
@@ -95,11 +104,14 @@ export class CineStationScene extends Phaser.Scene {
   // --- personaggi della folla: tre corsie di profondità
   private spawn(lane: 'far' | 'mid' | 'front', x: number, fast = false) {
     const c = Phaser.Math.Between(0, 3);
-    const cfg = { far: { y: LANE_FAR, sc: 0.11, v: 18, tint: 0x5a6a8a }, mid: { y: LANE_MID, sc: 0.19, v: 26, tint: 0xa8b4c8 }, front: { y: VIEW_H + 22, sc: 0.42, v: 95, tint: 0x0b1018 } }[lane];
-    const s = this.add.sprite(x, cfg.y + Phaser.Math.Between(-3, 3), 'crowd', `p${c}-0`).setOrigin(0.5, 0.96).setScale(cfg.sc * Phaser.Math.FloatBetween(0.92, 1.08)).setTint(cfg.tint).setDepth(lane === 'front' ? 500 : cfg.y);
-    s.play({ key: `crowd-walk-${c}`, startFrame: Phaser.Math.Between(0, 1) });
+    const cfg = { far: { y: LANE_FAR, sc: 0.14, v: 16, tint: 0x6b7a98 }, mid: { y: LANE_MID, sc: 0.2, v: 24, tint: 0xaeb9cc }, front: { y: VIEW_H + 22, sc: 0.42, v: 95, tint: 0x0b1018 } }[lane];
+    const y = cfg.y + Phaser.Math.Between(-2, 2);
+    const s = this.add.sprite(x, y, 'crowd', `p${c}-0`).setOrigin(0.5, 0.96).setScale(cfg.sc * Phaser.Math.FloatBetween(0.94, 1.06)).setTint(cfg.tint).setDepth(lane === 'front' ? 500 : y);
     if (lane === 'front') s.setAlpha(0.92);
-    const w = { s, v: cfg.v * Phaser.Math.FloatBetween(0.85, 1.2) * (fast ? 2.2 : 1) };
+    const v = cfg.v * Phaser.Math.FloatBetween(0.85, 1.2) * (fast ? 2.2 : 1);
+    // il passo segue la velocità: niente "pattinaggio"
+    s.play({ key: `crowd-walk-${c}`, startFrame: Phaser.Math.Between(0, 1), frameRate: Phaser.Math.Clamp(v / (cfg.sc * 22), 2.5, 9) });
+    const w = { s, v, base: y, ph: Math.random() * 6 };
     this.walkers.push(w);
     return w;
   }
@@ -207,7 +219,15 @@ export class CineStationScene extends Phaser.Scene {
     // personaggi
     this.myra.x += this.myraV * dt;
     if (this.mother.active) this.mother.x += this.motherV * dt;
-    for (const w of this.walkers) w.s.x += w.v * dt;
+    for (const w of this.walkers) {
+      w.s.x += w.v * dt;
+      // oscillazione del passo: su e giù a ogni appoggio
+      w.ph += dt * w.v * 0.42 / (w.s.scaleY * 10);
+      w.s.y = w.base - Math.abs(Math.sin(w.ph)) * 1.6 * (w.s.scaleY / 0.2);
+    }
+    const bob = (o: Phaser.GameObjects.Sprite, v: number, base: number) => { if (v > 1) o.y = base - Math.abs(Math.sin(this.time.now / 1000 * v * 0.2)) * 1.8; else o.y = base; };
+    bob(this.myra, this.myraV * this.slow, LANE_FRONT - 4);
+    if (this.mother.active) bob(this.mother, this.motherV * this.slow, LANE_FRONT - 8);
     this.walkers = this.walkers.filter((w) => { if (w.s.x > WORLD_W + 60) { w.s.destroy(); return false; } return true; });
     // nuova folla da sinistra
     this.spawnT -= dt;
