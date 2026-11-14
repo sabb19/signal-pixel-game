@@ -18,11 +18,12 @@ interface Shot {
   to: { x: number; y: number; s: number };
   fx?: Fx[];
   sound?: 'wind';
+  video?: string[]; // clip video (public/assets/video/NOME.mp4): se presenti sostituiscono l'inquadratura
 }
 
 const SHOTS: Shot[] = [
   {
-    key: 'c1_radio', fx: ['radio'],
+    key: 'c1_radio', fx: ['radio'], video: ['01_radio'],
     from: { x: 0.5, y: 0.5, s: 1.04 }, to: { x: 0.3, y: 0.56, s: 1.22 },
     lines: [
       'Da noi la radio restava accesa tutta la notte. Finché parlava, qualcuno da qualche parte era ancora lì.',
@@ -32,12 +33,12 @@ const SHOTS: Shot[] = [
   },
   {
     // la stazione: cinematic animata nel motore (CineStationScene), non una tavola
-    key: '@cine', fx: [],
+    key: '@cine', fx: [], video: ['02_stazione'],
     from: { x: 0.5, y: 0.5, s: 1 }, to: { x: 0.5, y: 0.5, s: 1 },
-    lines: [],
+    lines: ['Il giorno dell\'evacuazione, la stazione era un mare di persone.', 'Le ho lasciato la mano per un secondo. Un secondo solo.'],
   },
   {
-    key: 'c2_phone', fx: ['snow', 'phone'],
+    key: 'c2_phone', fx: ['snow', 'phone'], video: ['03_telefono'],
     from: { x: 0.5, y: 0.4, s: 1.1 }, to: { x: 0.48, y: 0.5, s: 1.35 },
     lines: [
       'Quando mi sono girata, non c\'era più.',
@@ -46,7 +47,7 @@ const SHOTS: Shot[] = [
     ],
   },
   {
-    key: 'c3_map', fx: ['map'],
+    key: 'c3_map', fx: ['map'], video: ['04_mappa'],
     from: { x: 0.45, y: 0.6, s: 1.05 }, to: { x: 0.58, y: 0.38, s: 1.3 },
     lines: [
       'Mio padre era tecnico in una stazione satellitare in montagna. Diceva che da lassù si parla con tutto il mondo.',
@@ -54,7 +55,7 @@ const SHOTS: Shot[] = [
     ],
   },
   {
-    key: 'c2_dish', fx: ['snow', 'static'], sound: 'wind',
+    key: 'c2_dish', fx: ['snow', 'static'], sound: 'wind', video: ['05_antenna'],
     from: { x: 0.55, y: 0.58, s: 1.14 }, to: { x: 0.42, y: 0.4, s: 1.02 },
     lines: [
       'I centri di accoglienza ascoltano ancora la radio.',
@@ -63,12 +64,12 @@ const SHOTS: Shot[] = [
   },
   {
     // il viaggio e l'arrivo: cinematic animata nel motore (CineJourneyScene)
-    key: '@cine:cammino', fx: [],
+    key: '@cine:cammino', fx: [], video: ['06_cammino', '07_arrivo'],
     from: { x: 0.5, y: 0.5, s: 1 }, to: { x: 0.5, y: 0.5, s: 1 },
-    lines: [],
+    lines: ['Tre giorni di cammino. Sirene lontane, fili della corrente a terra, nessuna voce.', 'Non so niente di reti. Non so da dove si comincia.', 'So solo che non posso restare ferma ad aspettare.'],
   },
   {
-    key: 'c6_inside', fx: ['torch', 'redlight'],
+    key: 'c6_inside', fx: ['torch', 'redlight'], video: ['08_dentro'],
     from: { x: 0.4, y: 0.55, s: 1.05 }, to: { x: 0.55, y: 0.35, s: 1.25 },
     lines: [
       'Dentro, tutto era rimasto fermo a quella notte.',
@@ -162,6 +163,8 @@ export class IntroScene extends Phaser.Scene {
     this.idx++;
     if (this.idx >= this.shots.length) return this.finish();
     const shot = this.shots[this.idx];
+    const vids = (shot.video ?? []).filter((v) => this.cache.video.exists(`vid-${v}`));
+    if (vids.length) return this.playVideos(vids, shot.lines);
     if (shot.key.startsWith('@cine')) {
       const scene = shot.key === '@cine:cammino' ? 'cinejourney' : 'cine';
       this.cameras.main.fadeOut(600, 0, 0, 0);
@@ -304,6 +307,39 @@ export class IntroScene extends Phaser.Scene {
       cam.add(r);
       this.tweens.add({ targets: r, alpha: 0.9, duration: 160, yoyo: true, hold: 260, repeat: -1, repeatDelay: 1500 });
     }
+  }
+
+  // clip video (Kling): a schermo intero, senza audio (la musica resta), sottotitoli distribuiti sulla durata
+  private playVideos(names: string[], lines: string[]) {
+    this.busy = true;
+    this.layers.forEach((l) => l.destroy()); this.layers = []; this.shotCam = undefined;
+    const layer = this.add.container(0, 0).setDepth(this.idx);
+    this.layers.push(layer);
+    let li = 0;
+    const showLine = () => {
+      if (li >= lines.length || this.leaving) return;
+      this.tweens.killTweensOf(this.caption);
+      this.caption.setText(lines[li++]).setColor(hex(P.cream2)).setAlpha(0).setY(VIEW_H - 58);
+      this.tweens.add({ targets: this.caption, alpha: 1, duration: 500 });
+    };
+    const total = names.length;
+    const play = (i: number) => {
+      if (this.leaving) return;
+      if (i >= total) { this.tweens.add({ targets: this.caption, alpha: 0, duration: 400 }); this.busy = false; this.nextShot(); return; }
+      const v = this.add.video(VIEW_W / 2, VIEW_H / 2, `vid-${names[i]}`);
+      layer.add(v);
+      v.setMute(true);
+      const fit = () => { const w = v.video?.videoWidth || 1280, h = v.video?.videoHeight || 720; v.setDisplaySize(w * Math.max(VIEW_W / w, VIEW_H / h), h * Math.max(VIEW_W / w, VIEW_H / h)); };
+      v.once('created', fit); fit();
+      v.play(false);
+      // i sottotitoli si dividono tra le clip di questa inquadratura
+      const per = Math.max(1, Math.ceil(lines.length / total));
+      const dur = (v.video?.duration || 5) * 1000;
+      for (let k = 0; k < per; k++) this.time.delayedCall(300 + k * (dur / per), showLine);
+      v.once('complete', () => { this.tweens.add({ targets: v, alpha: 0, duration: 400, onComplete: () => { v.destroy(); play(i + 1); } }); });
+    };
+    this.cameras.main.fadeIn(500, 0, 0, 0);
+    play(0);
   }
 
   private startLine() {

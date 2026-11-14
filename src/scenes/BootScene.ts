@@ -17,6 +17,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image('room-lab', 'assets/rooms/lab.png');
     this.load.image('room-comms', 'assets/rooms/comms.png');
     this.load.image('player-raw', 'assets/sprites/player_sheet.png');
+    // clip video del prologo (Kling), se presenti: quelle mancanti vengono semplicemente saltate
+    ['01_radio', '02_stazione', '03_telefono', '04_mappa', '05_antenna', '06_cammino', '07_arrivo', '08_dentro']
+      .forEach((n) => this.load.video(`vid-${n}`, `assets/video/${n}.mp4`, true));
     // cinematic in pixel art
     ['station_bg', 'crowd_strip', 'myra_reach', 'mother_sheet', 'crowd_sheet', 'journey_far', 'journey_road', 'arrival_bg'].forEach((k) => this.load.image(`cine-${k}`, `assets/cine/${k}.png`));
     this.load.image('keyart', 'assets/story/keyart.png');
