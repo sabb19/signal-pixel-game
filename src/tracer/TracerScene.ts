@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../core/config';
 import { P, hex } from '../core/palette';
-import { FONT, FONT_TITLE } from '../core/fonts';
+import { FONT_MONO, FONT_UI } from '../core/fonts';
 import { IrisDialog } from '../iris/IrisDialog';
 import { Audio } from '../audio/AudioManager';
 import { Net, Device, dev, ifaceOf, isHost, linkUp, Leg } from './model';
@@ -60,31 +60,31 @@ export class TracerScene extends Phaser.Scene {
     this.sel = undefined; this.terms = {}; this.sim = false; this.busy = false; this.won = false;
     this.pinged = new Set(); this.hintsUsed = 0; this.hintLevel = 0; this.guideStep = 0; this.simLog = [];
 
+    // estetica "app": pannelli arrotondati, toni ardesia, griglia appena accennata
     const g = this.add.graphics();
-    g.fillStyle(0x0b1013).fillRect(0, 0, VIEW_W, VIEW_H);
-    g.fillStyle(0x16242a).fillRect(0, 0, VIEW_W, 24);
-    // area topologia: griglia leggera come un foglio di lavoro
-    g.fillStyle(0x0f1a1e).fillRect(TX, TY, TW, TH).lineStyle(1, P.cyan1, 0.8).strokeRect(TX + 0.5, TY + 0.5, TW, TH);
-    g.lineStyle(1, 0x1d2c31, 1);
-    for (let x = TX + 10; x < TX + TW; x += 16) g.lineBetween(x, TY + 1, x, TY + TH - 1);
-    for (let y = TY + 10; y < TY + TH; y += 16) g.lineBetween(TX + 1, y, TX + TW - 1, y);
-    g.fillStyle(0x070d0f).fillRect(CX, CY, CW, CH).lineStyle(1, P.cyan1, 0.8).strokeRect(CX + 0.5, CY + 0.5, CW, CH);
-    g.fillStyle(0x12191c).fillRect(TX, 294, VIEW_W - 16, 58).lineStyle(1, P.metal, 1).strokeRect(TX + 0.5, 294.5, VIEW_W - 16, 58);
+    g.fillStyle(0x0d131a).fillRect(0, 0, VIEW_W, VIEW_H);
+    g.fillStyle(0x141c25).fillRect(0, 0, VIEW_W, 24).lineStyle(1, 0x243241).lineBetween(0, 24, VIEW_W, 24);
+    g.fillStyle(0x121b24).fillRoundedRect(TX, TY, TW, TH, 6).lineStyle(1, 0x2a3a4a).strokeRoundedRect(TX + 0.5, TY + 0.5, TW, TH, 6);
+    g.fillStyle(0x1a2633, 1);
+    for (let x = TX + 12; x < TX + TW - 4; x += 14) for (let y = TY + 12; y < TY + TH - 4; y += 14) g.fillRect(x, y, 1, 1);
+    g.fillStyle(0x0a0f14).fillRoundedRect(CX, CY, CW, CH, 6).lineStyle(1, 0x2a3a4a).strokeRoundedRect(CX + 0.5, CY + 0.5, CW, CH, 6);
+    g.fillStyle(0x16202b).fillRect(CX + 1, CY + 1, CW - 2, 17);
+    g.fillStyle(0x141c25).fillRoundedRect(TX, 294, VIEW_W - 16, 58, 6).lineStyle(1, 0x2a3a4a).strokeRoundedRect(TX + 0.5, 294.5, VIEW_W - 16, 58, 6);
 
     const lvMeta = LEVELS.find((l) => l.id === this.levelId)!;
-    this.add.text(8, 5, `IRIS TRACER · ${lvMeta.id} ${lvMeta.title.toUpperCase()}`, { fontFamily: FONT_TITLE, fontSize: '10px', color: hex(P.cyan3) });
-    this.add.text(250, 4, this.diff.toUpperCase(), { fontFamily: FONT, fontSize: '14px', color: hex(this.diff === 'studente' ? P.phos : this.diff === 'junior' ? P.lamp2 : P.red2) });
-    this.timerText = this.add.text(330, 4, '', { fontFamily: FONT, fontSize: '14px', color: hex(P.cream) });
+    this.add.text(8, 5, `IRIS TRACER · ${lvMeta.id} ${lvMeta.title.toUpperCase()}`, { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8px', color: hex(P.cyan3) });
+    this.add.text(250, 4, this.diff.toUpperCase(), { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(this.diff === 'studente' ? P.phos : this.diff === 'junior' ? P.lamp2 : P.red2) });
+    this.timerText = this.add.text(330, 4, '', { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cream) });
     this.simBtn = this.button(400, 4, '', () => this.toggleSim());
     if (this.diff !== 'esperto') this.button(520, 4, '[H] aiuto', () => this.hint());
     this.button(588, 4, '[Esc]', () => this.leave());
 
     this.topo = this.add.graphics();
     this.ring = this.add.graphics().setDepth(5);
-    this.objText = this.add.text(TX + 6, TY + 4, '', { fontFamily: FONT, fontSize: '13px', color: hex(P.cream2), lineSpacing: -3 }).setDepth(6);
-    this.termTitle = this.add.text(CX + 6, CY + 3, '', { fontFamily: FONT, fontSize: '14px', color: hex(P.cyan1) });
-    this.termRows = Array.from({ length: ROWS }, (_, i) => this.add.text(CX + 6, CY + 20 + i * 15.6, '', { fontFamily: FONT, fontSize: '14px', color: hex(P.cyan3) }));
-    this.bottom = this.add.text(TX + 6, 297, '', { fontFamily: FONT, fontSize: '14px', color: hex(P.lamp2), wordWrap: { width: VIEW_W - 30 }, lineSpacing: -3 });
+    this.objText = this.add.text(TX + 6, TY + 4, '', { fontFamily: FONT_MONO, fontSize: '10px', color: hex(P.cream2), lineSpacing: -3 }).setDepth(6);
+    this.termTitle = this.add.text(CX + 6, CY + 3, '', { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cyan1) });
+    this.termRows = Array.from({ length: ROWS }, (_, i) => this.add.text(CX + 6, CY + 20 + i * 15.6, '', { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cyan3) }));
+    this.bottom = this.add.text(TX + 6, 297, '', { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.lamp2), wordWrap: { width: VIEW_W - 30 }, lineSpacing: -3 });
     this.iris = new IrisDialog(this);
 
     this.drawTopology();
@@ -98,7 +98,7 @@ export class TracerScene extends Phaser.Scene {
   }
 
   private button(x: number, y: number, t: string, cb: () => void) {
-    return this.add.text(x, y, t, { fontFamily: FONT, fontSize: '14px', color: hex(P.cream2) })
+    return this.add.text(x, y, t, { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cream2) })
       .setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.iris.open && !this.won) cb(); })
       .on('pointerover', function (this: Phaser.GameObjects.Text) { this.setColor(hex(P.cyan3)); })
       .on('pointerout', function (this: Phaser.GameObjects.Text) { this.setColor(hex(P.cream2)); });
@@ -112,7 +112,7 @@ export class TracerScene extends Phaser.Scene {
     this.topoTexts.forEach((t) => t.destroy());
     this.topoTexts = [];
     const txt = (x: number, y: number, t: string, c: number, size = 12) =>
-      this.topoTexts.push(this.add.text(x, y, t, { fontFamily: FONT, fontSize: `${size}px`, color: hex(c) }).setOrigin(0.5, 0));
+      this.topoTexts.push(this.add.text(x, y, t, { fontFamily: FONT_MONO, fontSize: `${Math.round(size * 0.74)}px`, color: hex(c) }).setOrigin(0.5, 0));
     // cavi, con le spie alle estremità come in Packet Tracer
     for (const l of this.net.links) {
       const A = dev(this.net, l.a[0]), B = dev(this.net, l.b[0]);
@@ -199,7 +199,7 @@ export class TracerScene extends Phaser.Scene {
     const wrapped: { t: string; c: number }[] = [];
     for (const l of T.lines) {
       let r = l.t;
-      while (r.length > 40) { let cut = r.lastIndexOf(' ', 40); if (cut < 12) cut = 40; wrapped.push({ t: r.slice(0, cut), c: l.c }); r = '  ' + r.slice(cut).trimStart(); }
+      while (r.length > 46) { let cut = r.lastIndexOf(' ', 46); if (cut < 12) cut = 46; wrapped.push({ t: r.slice(0, cut), c: l.c }); r = '  ' + r.slice(cut).trimStart(); }
       wrapped.push({ t: r, c: l.c });
     }
     const vis = wrapped.slice(-(ROWS - 1));
@@ -355,7 +355,7 @@ export class TracerScene extends Phaser.Scene {
         const ok = l.ok;
         if (!ok) {
           const end = pts[pts.length - 1];
-          const x = this.add.text(end.x, end.y - 30, '✕', { fontFamily: FONT, fontSize: '18px', color: hex(P.red2) }).setOrigin(0.5).setDepth(21);
+          const x = this.add.text(end.x, end.y - 30, '✕', { fontFamily: FONT_MONO, fontSize: '13px', color: hex(P.red2) }).setOrigin(0.5).setDepth(21);
           this.tweens.add({ targets: x, alpha: 0, delay: this.sim ? 1600 : 700, duration: 400, onComplete: () => x.destroy() });
         }
         env.setFillStyle(ok ? P.phos : P.red);
@@ -380,11 +380,11 @@ export class TracerScene extends Phaser.Scene {
       Audio.power();
       const box = this.add.container(VIEW_W / 2, 150).setDepth(30);
       const bg = this.add.rectangle(0, 0, 360, 150, 0x0b1013, 0.96).setStrokeStyle(1, P.cyan3);
-      const t1 = this.add.text(0, -58, 'RETE FUNZIONANTE', { fontFamily: FONT_TITLE, fontSize: '14px', color: hex(P.phos) }).setOrigin(0.5);
-      const t2 = this.add.text(0, -26, '★'.repeat(stars) + '☆'.repeat(3 - stars), { fontFamily: FONT, fontSize: '30px', color: hex(P.lamp2) }).setOrigin(0.5);
-      const t3 = this.add.text(0, 14, `★ completato   ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti   ${secs <= this.lv.parTime ? '★' : '☆'} entro ${this.lv.parTime}s (${secs}s)`, { fontFamily: FONT, fontSize: '13px', color: hex(P.cream2) }).setOrigin(0.5);
+      const t1 = this.add.text(0, -58, 'RETE FUNZIONANTE', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '10px', color: hex(P.phos) }).setOrigin(0.5);
+      const t2 = this.add.text(0, -26, '★'.repeat(stars) + '☆'.repeat(3 - stars), { fontFamily: FONT_MONO, fontSize: '30px', color: hex(P.lamp2) }).setOrigin(0.5);
+      const t3 = this.add.text(0, 14, `★ completato   ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti   ${secs <= this.lv.parTime ? '★' : '☆'} entro ${this.lv.parTime}s (${secs}s)`, { fontFamily: FONT_MONO, fontSize: '10px', color: hex(P.cream2) }).setOrigin(0.5);
       const hasNext = LEVELS.findIndex((l) => l.id === this.levelId) < LEVELS.length - 1;
-      const t4 = this.add.text(0, 48, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, { fontFamily: FONT, fontSize: '14px', color: hex(P.cyan3) }).setOrigin(0.5);
+      const t4 = this.add.text(0, 48, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, { fontFamily: FONT_MONO, fontSize: '10.5px', color: hex(P.cyan3) }).setOrigin(0.5);
       box.add([bg, t1, t2, t3, t4]);
       this.bottom.setText('');
       this.iris.say([`IRIS: ${this.lv.concept}: fatto. ${stars === 3 ? 'Perfetto.' : 'Puoi rigiocarlo: ogni volta la rete è diversa.'}`]);
