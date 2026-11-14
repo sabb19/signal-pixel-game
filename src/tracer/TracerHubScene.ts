@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
+import { hiDpi } from './hidpi';
 import { VIEW_W, VIEW_H } from '../core/config';
-import { FONT_MONO, FONT_UI, FONT_TITLE } from '../core/fonts';
+import { FONT_MONO, FONT_UI } from '../core/fonts';
 import { Audio } from '../audio/AudioManager';
 import { LEVELS, Difficulty } from './levels';
 import { loadStars, totalStars, rank, totalXp, badges, sprintBest, BADGES } from './progress';
@@ -31,6 +32,7 @@ export class TracerHubScene extends Phaser.Scene {
   }
 
   create() {
+    hiDpi(this);
     this.cardTexts = []; this.diffTexts = [];
     const g = this.add.graphics();
     g.fillStyle(C.bg).fillRect(0, 0, VIEW_W, VIEW_H);
@@ -42,27 +44,27 @@ export class TracerHubScene extends Phaser.Scene {
     g.fillStyle(0x060c12).fillRect(0, 0, VIEW_W, 34).lineStyle(1, C.line).lineBetween(0, 34, VIEW_W, 34);
     g.fillStyle(0x0b1520).fillRoundedRect(6, 4, 30, 26, 3).lineStyle(1, C.cyan, 0.8).strokeRoundedRect(6.5, 4.5, 30, 26, 3);
     this.wave = this.add.graphics();
-    this.tx(42, 5, 'SIMULATORE I.R.I.S.', C.cyanT, 10, FONT_TITLE);
+    this.tx(42, 5, 'SIMULATORE I.R.I.S.', C.cyanT, 10, FONT_UI, true);
     this.tx(42, 19, 'Reti ricostruite dai registri della stazione · ogni partita è diversa', C.dim, 7.5);
     const xp = totalXp(), lvl = Math.floor(xp / 200) + 1, stars = totalStars(), r = rank(stars);
-    this.tx(VIEW_W - 220, 5, r.name.toUpperCase(), C.goldT, 8, FONT_TITLE);
-    this.tx(VIEW_W - 220, 18, `LV ${lvl}`, C.text, 8, FONT_TITLE);
+    this.tx(VIEW_W - 220, 5, r.name.toUpperCase(), C.goldT, 9.5, FONT_UI, true);
+    this.tx(VIEW_W - 220, 18, `LV ${lvl}`, C.text, 9.5, FONT_UI, true);
     g.fillStyle(0x1a2a38).fillRoundedRect(VIEW_W - 180, 20, 90, 6, 3).fillStyle(C.gold).fillRoundedRect(VIEW_W - 180, 20, Math.max(3, (xp % 200) * 0.45), 6, 3);
-    this.tx(VIEW_W - 84, 17, `★ ${stars}`, C.goldT, 9, FONT_TITLE);
-    this.tx(VIEW_W - 44, 17, `🏅 ${badges().length}`, C.text, 9, FONT_TITLE);
+    this.tx(VIEW_W - 84, 17, `★ ${stars}`, C.goldT, 10.5, FONT_UI, true);
+    this.tx(VIEW_W - 44, 17, `🏅 ${badges().length}`, C.text, 10.5, FONT_UI, true);
     if (r.next) this.tx(VIEW_W - 84, 5, `prossimo grado ★${r.next}`, C.dim, 6.5);
 
     // ===== missioni
-    this.tx(14, 42, 'CAPITOLO 1 · RETE', C.goldT, 8, FONT_TITLE);
+    this.tx(14, 42, 'CAPITOLO 1 · RETE', C.goldT, 8, FONT_UI, true);
     this.tx(160, 43, 'Packet Tracer · CLI Cisco IOS', C.dim, 7.5);
     this.cards = this.add.graphics();
     LEVELS.forEach((l, i) => {
       const y = 56 + i * 52;
       const row = [
-        this.tx(56, y + 8, l.title.toUpperCase(), C.text, 9, FONT_TITLE),
+        this.tx(56, y + 8, l.title.toUpperCase(), C.text, 10.5, FONT_UI, true),
         this.tx(56, y + 23, l.concept, C.dim, 8.5),
-        this.tx(34, y + 15, l.id, C.text, 9, FONT_TITLE).setOrigin(0.5, 0),
-        this.tx(262, y + 9, '', C.goldT, 8.5, FONT_MONO),
+        this.tx(34, y + 15, l.id, C.text, 10.5, FONT_UI, true).setOrigin(0.5, 0),
+        this.tx(262, y + 9, '', C.goldT, 10, FONT_MONO),
       ];
       this.cardTexts.push(row);
       this.add.zone(12, y, 396, 46).setOrigin(0).setInteractive({ useHandCursor: true })
@@ -74,34 +76,34 @@ export class TracerHubScene extends Phaser.Scene {
       const x = 12 + i * 134, y = 216;
       g.fillStyle(0x0b131b).fillRoundedRect(x, y, 128, 40, 4).lineStyle(1, 0x1e2c38).strokeRoundedRect(x + 0.5, y + 0.5, 128, 40, 4);
       this.tx(x + 10, y + 8, '🔒', C.lock, 11);
-      this.tx(x + 30, y + 8, t, C.lock, 8, FONT_TITLE);
+      this.tx(x + 30, y + 8, t, C.lock, 9.5, FONT_UI, true);
       this.tx(x + 30, y + 22, ['VLAN · ACL · NAT', 'registri · show · tracce', 'difesa e attacco'][i], C.lock, 7.5);
     });
     this.tx(12, 260, 'Gli altri capitoli si sbloccano nella storia.', C.lock, 7.5);
 
     // ===== difficoltà
-    this.tx(424, 42, 'DIFFICOLTÀ', C.goldT, 8, FONT_TITLE);
+    this.tx(424, 42, 'DIFFICOLTÀ', C.goldT, 8, FONT_UI, true);
     this.diffG = this.add.graphics();
     DIFFS.forEach((D, i) => {
       const y = 56 + i * 34;
-      this.diffTexts.push([this.tx(440, y + 5, D.label, css(D.color), 8, FONT_TITLE), this.tx(440, y + 17, D.who, C.dim, 7)]);
+      this.diffTexts.push([this.tx(440, y + 5, D.label, css(D.color), 9.5, FONT_UI, true), this.tx(440, y + 17, D.who, C.dim, 7)]);
       this.add.zone(424, y, 204, 30).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.d = i; Audio.click(); this.refresh(); });
     });
 
     // ===== sfida lampo
     const sy = 162;
     g.fillStyle(0x1a1408).fillRoundedRect(424, sy, 204, 38, 4).lineStyle(1, C.gold, 0.8).strokeRoundedRect(424.5, sy + 0.5, 204, 38, 4);
-    this.tx(434, sy + 6, '⚡ SUBNET SPRINT', C.goldT, 8.5, FONT_TITLE);
+    this.tx(434, sy + 6, '⚡ SUBNET SPRINT', C.goldT, 10, FONT_UI, true);
     this.tx(434, sy + 21, `60 secondi · record ${sprintBest()}   ·   tasto S`, C.text, 7.5);
     this.add.zone(424, sy, 204, 38).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.go('sprint'));
 
     // ===== distintivi
-    this.tx(424, 208, 'DISTINTIVI', C.goldT, 8, FONT_TITLE);
+    this.tx(424, 208, 'DISTINTIVI', C.goldT, 8, FONT_UI, true);
     const got = badges();
     Object.entries(BADGES).forEach(([id, b], i) => {
       const x = 438 + i * 32, y = 236, on = got.includes(id);
       g.fillStyle(on ? C.gold : 0x16222e).fillCircle(x, y, 11).lineStyle(1, on ? 0xffe39a : 0x2a3a48).strokeCircle(x, y, 11);
-      this.tx(x, y - 6, on ? '★' : '?', on ? '#5a3d00' : C.lock, 10, FONT_TITLE).setOrigin(0.5, 0);
+      this.tx(x, y - 6, on ? '★' : '?', on ? '#5a3d00' : C.lock, 11.5, FONT_UI, true).setOrigin(0.5, 0);
       this.add.zone(x, y, 24, 24).setInteractive().on('pointerover', () => this.tip?.setText(`${b.name}: ${on ? b.desc : '???'}`));
     });
     this.tip = this.tx(424, 252, 'passa sopra un distintivo', C.dim, 7);
@@ -111,7 +113,7 @@ export class TracerHubScene extends Phaser.Scene {
     const play = this.add.graphics();
     const drawPlay = (h: boolean) => play.clear().fillStyle(h ? 0x4fe08a : 0x2fc76a).fillRoundedRect(VIEW_W / 2 - 80, 302, 160, 34, 6).lineStyle(2, 0xb6ffd0, h ? 1 : 0.5).strokeRoundedRect(VIEW_W / 2 - 80, 302, 160, 34, 6);
     drawPlay(false);
-    this.tx(VIEW_W / 2, 312, '▶  GIOCA', '#062012', 12, FONT_TITLE).setOrigin(0.5, 0);
+    this.tx(VIEW_W / 2, 312, '▶  GIOCA', '#062012', 12, FONT_UI, true).setOrigin(0.5, 0);
     this.add.zone(VIEW_W / 2 - 80, 302, 160, 34).setOrigin(0).setInteractive({ useHandCursor: true })
       .on('pointerover', () => drawPlay(true)).on('pointerout', () => drawPlay(false)).on('pointerdown', () => this.start());
     this.tx(12, 343, '↑↓ missione   ← → difficoltà   INVIO gioca   S sfida lampo   Esc menu', C.dim, 7.5, FONT_MONO);

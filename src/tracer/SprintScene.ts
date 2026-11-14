@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { hiDpi } from './hidpi';
 import { VIEW_W, VIEW_H } from '../core/config';
 import { FONT_MONO, FONT_UI } from '../core/fonts';
 import { Audio } from '../audio/AudioManager';
@@ -26,6 +27,7 @@ export class SprintScene extends Phaser.Scene {
   constructor() { super('sprint'); }
 
   create() {
+    hiDpi(this);
     this.score = 0; this.streak = 0; this.left = 60; this.over = false; this.started = false;
     const g = this.add.graphics();
     g.fillStyle(0xf3f4f6).fillRect(0, 0, VIEW_W, VIEW_H);
@@ -39,7 +41,7 @@ export class SprintScene extends Phaser.Scene {
     this.add.text(VIEW_W / 2, 176, 'è dentro questa rete?', { fontFamily: FONT_UI, fontSize: '11px', color: '#5f6b7a' }).setOrigin(0.5, 0);
     this.button(150, 240, '◀  DENTRO  (D)', '#1f8a3e', true);
     this.button(VIEW_W - 150, 240, 'FUORI  (F)  ▶', '#c62828', false);
-    this.info = this.add.text(VIEW_W / 2, 290, 'Più risposte giuste in 60 secondi. Le serie valgono di più.\nUn errore costa 3 secondi.   Premi INVIO per iniziare · Esc esci', { fontFamily: FONT_UI, fontSize: '10px', color: '#1f2933', align: 'center' }).setOrigin(0.5, 0);
+    this.info = this.add.text(VIEW_W / 2, 290, 'Più risposte giuste in 60 secondi. Le serie valgono di più.\nUn errore costa 3 secondi.   Premi INVIO per iniziare · Esc esci', { fontFamily: FONT_UI, fontSize: '11.5px', color: '#1f2933', align: 'center' }).setOrigin(0.5, 0);
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => this.onKey(e));
     this.next();
     this.refresh();

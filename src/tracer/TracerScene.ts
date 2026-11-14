@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
+import { hiDpi } from './hidpi';
 import { VIEW_W, VIEW_H } from '../core/config';
-import { FONT_MONO, FONT_UI, FONT_TITLE } from '../core/fonts';
+import { FONT_MONO, FONT_UI } from '../core/fonts';
 import { IrisDialog } from '../iris/IrisDialog';
 import { Audio } from '../audio/AudioManager';
 import { Net, Device, dev, ifaceOf, isHost, linkUp, Leg, prefixOf, intToIp, netOf } from './model';
@@ -83,6 +84,7 @@ export class TracerScene extends Phaser.Scene {
   }
 
   create() {
+    hiDpi(this);
     this.lv = makeLevel(this.levelId, this.diff);
     this.net = this.lv.net;
     this.sel = undefined; this.terms = {}; this.sim = false; this.busy = false; this.won = false; this.win = undefined; this.tut = undefined;
@@ -96,18 +98,18 @@ export class TracerScene extends Phaser.Scene {
     g.fillStyle(0x060c12).fillRect(0, 0, VIEW_W, 30).lineStyle(1, C.line).lineBetween(0, 30, VIEW_W, 30);
     g.fillStyle(0x0b1520).fillRoundedRect(4, 3, 30, 24, 3).lineStyle(1, C.blue, 0.8).strokeRoundedRect(4.5, 3.5, 30, 24, 3);
     this.waveG = this.add.graphics().setDepth(3);
-    this.add.text(40, 4, `MISSIONE ${meta.id}`, { fontFamily: FONT_TITLE, fontSize: '8px', color: C.goldT });
-    this.add.text(40, 15, meta.title.toUpperCase(), { fontFamily: FONT_TITLE, fontSize: '9px', color: C.text });
+    this.add.text(40, 4, `MISSIONE ${meta.id}`, { fontFamily: FONT_UI, fontStyle: '700', fontSize: '9.5px', color: C.goldT });
+    this.add.text(40, 15, meta.title.toUpperCase(), { fontFamily: FONT_UI, fontStyle: '700', fontSize: '10.5px', color: C.text });
     const badge = { studente: [C.ok, 'STUDENTE'], junior: [C.warn, 'JUNIOR'], esperto: [C.bad, 'ESPERTO'] }[this.diff] as [number, string];
     g.fillStyle(badge[0], 0.18).fillRoundedRect(150, 9, 54, 13, 3).lineStyle(1, badge[0]).strokeRoundedRect(150.5, 9.5, 54, 13, 3);
-    this.add.text(177, 11, badge[1], { fontFamily: FONT_TITLE, fontSize: '7px', color: '#' + badge[0].toString(16).padStart(6, '0') }).setOrigin(0.5, 0);
-    this.add.text(214, 4, 'SEGNALE', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
-    this.add.text(372, 4, 'LIVELLO', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
+    this.add.text(177, 11, badge[1], { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: '#' + badge[0].toString(16).padStart(6, '0') }).setOrigin(0.5, 0);
+    this.add.text(214, 4, 'SEGNALE', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: C.dim });
+    this.add.text(372, 4, 'LIVELLO', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: C.dim });
     this.hud = this.add.graphics().setDepth(2);
-    this.hudText = this.add.text(352, 15, '', { fontFamily: FONT_MONO, fontSize: '8px', color: C.text }).setOrigin(1, 0).setDepth(3);
-    this.xpText = this.add.text(372, 15, '', { fontFamily: FONT_TITLE, fontSize: '8px', color: C.goldT }).setDepth(3);
-    this.streakText = this.add.text(520, 9, '', { fontFamily: FONT_TITLE, fontSize: '10px', color: '#ff9a3c' }).setDepth(3);
-    this.timerText = this.add.text(VIEW_W - 8, 7, '', { fontFamily: FONT_TITLE, fontSize: '13px', color: C.text }).setOrigin(1, 0);
+    this.hudText = this.add.text(352, 15, '', { fontFamily: FONT_MONO, fontSize: '9.5px', color: C.text }).setOrigin(1, 0).setDepth(3);
+    this.xpText = this.add.text(372, 15, '', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '9.5px', color: C.goldT }).setDepth(3);
+    this.streakText = this.add.text(520, 9, '', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '11.5px', color: '#ff9a3c' }).setDepth(3);
+    this.timerText = this.add.text(VIEW_W - 8, 7, '', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '13px', color: C.text }).setOrigin(1, 0);
 
     // area di lavoro "Logica"
     // lavagna della rete: blu notte, griglia ciano tenue, angoli da mirino
@@ -117,15 +119,15 @@ export class TracerScene extends Phaser.Scene {
     for (let y = WS.y; y < WS.y + WS.h; y += 16) g.lineBetween(0, y, VIEW_W, y);
     g.lineStyle(2, C.blue, 0.6);
     [[6, WS.y + 6, 1, 1], [VIEW_W - 6, WS.y + 6, -1, 1], [6, WS.y + WS.h - 6, 1, -1], [VIEW_W - 6, WS.y + WS.h - 6, -1, -1]].forEach(([x, y, dx, dy]) => g.lineBetween(x, y, x + 12 * dx, y).lineBetween(x, y, x, y + 12 * dy));
-    this.add.text(14, WS.y + 6, 'TOPOLOGIA', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.dim });
+    this.add.text(14, WS.y + 6, 'TOPOLOGIA', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: C.dim });
 
     // ===== barra in basso: fumetto di IRIS (guida/eventi) + tasti azione
     g.fillStyle(0x060c12).fillRect(0, 280, VIEW_W, 80).lineStyle(1, C.line).lineBetween(0, 280, VIEW_W, 280);
     g.fillStyle(C.panel).fillRoundedRect(8, 286, 430, 68, 5).lineStyle(1, C.blue, 0.7).strokeRoundedRect(8.5, 286.5, 430, 68, 5);
     g.fillStyle(0x0b1520).fillRoundedRect(14, 292, 34, 34, 3).lineStyle(1, C.blue, 0.6).strokeRoundedRect(14.5, 292.5, 34, 34, 3);
-    this.add.text(31, 330, 'IRIS', { fontFamily: FONT_TITLE, fontSize: '7px', color: C.blueT }).setOrigin(0.5, 0);
+    this.add.text(31, 330, 'IRIS', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: C.blueT }).setOrigin(0.5, 0);
     this.coachWave = this.add.graphics().setDepth(3);
-    this.bottomText = this.add.text(56, 291, '', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, wordWrap: { width: 376 }, lineSpacing: 1 });
+    this.bottomText = this.add.text(56, 291, '', { fontFamily: FONT_UI, fontSize: '10.5px', color: C.text, wordWrap: { width: 376 }, lineSpacing: 1 });
     this.modeBtns = [
       this.keycap(448, 288, 'H', 'AIUTO', () => this.hint(), this.diff === 'esperto'),
       this.keycap(544, 288, 'S', 'SIMULAZIONE', () => this.toggleSim(), false),
@@ -169,8 +171,8 @@ export class TracerScene extends Phaser.Scene {
       g.fillStyle(disabled ? 0x1a2430 : 0x1d3448).fillRoundedRect(x + 5, y + 5, key.length > 1 ? 26 : 18, 18, 3).fillStyle(disabled ? 0x111a22 : 0x0c1a26).fillRect(x + 5, y + 19, key.length > 1 ? 26 : 18, 4);
     };
     draw(false);
-    const kt = this.add.text(x + 5 + (key.length > 1 ? 13 : 9), y + 8, key, { fontFamily: FONT_TITLE, fontSize: '7px', color: disabled ? '#4a5866' : C.text }).setOrigin(0.5, 0);
-    const lt = this.add.text(x + (key.length > 1 ? 36 : 28), y + 9, label, { fontFamily: FONT_TITLE, fontSize: '7px', color: disabled ? '#4a5866' : C.text });
+    const kt = this.add.text(x + 5 + (key.length > 1 ? 13 : 9), y + 8, key, { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: disabled ? '#4a5866' : C.text }).setOrigin(0.5, 0);
+    const lt = this.add.text(x + (key.length > 1 ? 36 : 28), y + 9, label, { fontFamily: FONT_UI, fontStyle: '700', fontSize: '8.5px', color: disabled ? '#4a5866' : C.text });
     const z = this.add.zone(x, y, w, h).setOrigin(0);
     if (!disabled) z.setInteractive({ useHandCursor: true }).on('pointerover', () => draw(true)).on('pointerout', () => draw(false))
       .on('pointerdown', () => { if (!this.iris.open && !this.tut && !this.won) cb(); });
@@ -258,8 +260,8 @@ export class TracerScene extends Phaser.Scene {
     g.fillStyle(C.panel, 0.94).fillRoundedRect(x, y, w, h, 4).lineStyle(1, C.gold, 0.8).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 4);
     g.fillStyle(C.gold, 0.18).fillRoundedRect(x, y, w, 16, { tl: 4, tr: 4, bl: 0, br: 0 });
     this.act.add(g);
-    this.act.add(this.add.text(x + 6, y + 4, 'REGISTRO MISSIONE', { fontFamily: FONT_TITLE, fontSize: '7.5px', color: C.goldT }));
-    this.actRows = this.lv.objectives.map((_, i) => this.add.text(x + 6, y + 21 + i * 22, '', { fontFamily: FONT_UI, fontSize: '8.5px', color: C.text, wordWrap: { width: w - 12 } }));
+    this.act.add(this.add.text(x + 6, y + 4, 'REGISTRO MISSIONE', { fontFamily: FONT_UI, fontStyle: '700', fontSize: '9px', color: C.goldT }));
+    this.actRows = this.lv.objectives.map((_, i) => this.add.text(x + 6, y + 21 + i * 22, '', { fontFamily: FONT_UI, fontSize: '10px', color: C.text, wordWrap: { width: w - 12 } }));
     this.actRows.forEach((r) => this.act.add(r));
     this.actBar = this.add.graphics();
     this.actPct = this.t(x + w - 6, y + h - 13, '', C.dim, 7.5).setOrigin(1, 0);
@@ -321,7 +323,7 @@ export class TracerScene extends Phaser.Scene {
     g.fillStyle(0x0c1620, 0.98).fillRoundedRect(x, y, w, h, 5).lineStyle(1, C.blue, 0.8).strokeRoundedRect(x + 0.5, y + 0.5, w, h, 5);
     g.fillStyle(C.title).fillRoundedRect(x, y, w, 16, { tl: 5, tr: 5, bl: 0, br: 0 });
     c.add(g);
-    c.add(this.t(x + 8, y + 3, d.hostname, '#ffffff', 9, true));
+    c.add(this.t(x + 8, y + 3, d.hostname, '#ffffff', 10.5, true));
     // passa a un altro dispositivo senza chiudere (la finestra copre parte della topologia)
     let bx = x + 70;
     c.add(this.t(bx, y + 3.5, 'Apri:', '#9fb3c8', 8));
@@ -334,7 +336,7 @@ export class TracerScene extends Phaser.Scene {
       c.add(b2);
       bx += b2.width + 10;
     }
-    const close = this.t(x + w - 14, y + 2, '✕', '#ffffff', 10, true).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.closeWin());
+    const close = this.t(x + w - 14, y + 2, '✕', '#ffffff', 11.5, true).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.closeWin());
     c.add(close);
     const tabs: [Tab, string][] = [['fisico', 'Fisico'], ['config', 'Config'], ['cli', isHost(d) ? 'Desktop' : 'CLI']];
     tabs.forEach(([id, label], i) => {
@@ -348,7 +350,7 @@ export class TracerScene extends Phaser.Scene {
     const dark = this.tab === 'cli' && isHost(d);
     bg.fillStyle(dark ? C.cmdBg : C.cliBg).fillRect(body.x, body.y, body.w, body.h).lineStyle(1, C.line).strokeRect(body.x + 0.5, body.y + 0.5, body.w, body.h);
     c.add(bg);
-    this.winRows = Array.from({ length: ROWS }, (_, i) => this.add.text(body.x + 6, body.y + 4 + i * 14.4, '', { fontFamily: FONT_MONO, fontSize: '9.5px', color: C.text }));
+    this.winRows = Array.from({ length: ROWS }, (_, i) => this.add.text(body.x + 6, body.y + 4 + i * 14.4, '', { fontFamily: FONT_MONO, fontSize: '11px', color: C.text }));
     this.winRows.forEach((r) => c.add(r));
     this.win = c;
     this.refreshWindow();
@@ -489,8 +491,8 @@ export class TracerScene extends Phaser.Scene {
       const bx = Phaser.Math.Clamp(x + w / 2 - 130, 8, VIEW_W - 268), by = y + h + 8 + 70 < VIEW_H ? y + h + 8 : Math.max(8, y - 78);
       g.fillStyle(C.panel).fillRoundedRect(bx, by, 260, 70, 5).lineStyle(1, C.line).strokeRoundedRect(bx + 0.5, by + 0.5, 260, 70, 5);
       c.add(g);
-      c.add(this.t(bx + 8, by + 6, `${s.title}  ·  ${i + 1}/${steps.length}`, C.blueT, 9.5, true));
-      c.add(this.add.text(bx + 8, by + 21, s.text, { fontFamily: FONT_UI, fontSize: '8.5px', color: C.text, wordWrap: { width: 244 }, lineSpacing: 1 }));
+      c.add(this.t(bx + 8, by + 6, `${s.title}  ·  ${i + 1}/${steps.length}`, C.blueT, 11, true));
+      c.add(this.add.text(bx + 8, by + 21, s.text, { fontFamily: FONT_UI, fontSize: '10px', color: C.text, wordWrap: { width: 244 }, lineSpacing: 1 }));
       c.add(this.t(bx + 252, by + 58, 'INVIO / clic avanti · Esc salta', C.dim, 7).setOrigin(1, 0));
     };
     this.tutNext = () => { i++; Audio.click(); show(); };
@@ -636,7 +638,7 @@ export class TracerScene extends Phaser.Scene {
     if (!earnBadge(id)) return;
     const b = BADGES[id];
     const c = this.add.container(VIEW_W / 2, WS.y + 18).setDepth(70).setAlpha(0);
-    const tx = this.t(0, 0, `🏅 Distintivo: ${b.name} — ${b.desc}`, '#5a3d00', 9, true).setOrigin(0.5);
+    const tx = this.t(0, 0, `🏅 Distintivo: ${b.name} — ${b.desc}`, '#5a3d00', 10.5, true).setOrigin(0.5);
     const g = this.add.graphics().fillStyle(0xffd76a).fillRoundedRect(-tx.width / 2 - 10, -9, tx.width + 20, 18, 9).lineStyle(1, 0xc9962a).strokeRoundedRect(-tx.width / 2 - 10, -9, tx.width + 20, 18, 9);
     c.add([g, tx]);
     Audio.confirm();
@@ -671,7 +673,7 @@ export class TracerScene extends Phaser.Scene {
     this.alert?.destroy();
     const msg = `⚠ SILENCE · ${this.diff === 'esperto' ? a.vague : a.desc}`;
     const c = this.add.container(8, WS.y + 28).setDepth(45);
-    const tx = this.t(10, 0, msg, '#ffffff', 9, true).setOrigin(0, 0.5);
+    const tx = this.t(10, 0, msg, '#ffffff', 10.5, true).setOrigin(0, 0.5);
     const g = this.add.graphics().fillStyle(C.bad).fillRoundedRect(0, -9, tx.width + 20, 18, 4);
     c.add([g, tx]);
     this.tweens.add({ targets: c, alpha: 0.55, duration: 450, yoyo: true, repeat: -1 });
@@ -700,8 +702,8 @@ export class TracerScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(C.panel).fillRoundedRect(-170, -60, 340, 120, 6).lineStyle(1, C.line).strokeRoundedRect(-170, -60, 340, 120, 6);
     g.fillStyle(C.bad).fillRoundedRect(-170, -60, 340, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
-    box.add([g, this.t(0, -56, 'SILENCE ha isolato la rete', '#ffffff', 9.5, true).setOrigin(0.5, 0),
-      this.add.text(0, -24, 'La salute della rete è arrivata a zero.\nOgni guasto aperto la fa scendere: ripara prima quello che blocca di più.', { fontFamily: FONT_UI, fontSize: '9px', color: C.text, align: 'center' }).setOrigin(0.5, 0),
+    box.add([g, this.t(0, -56, 'SILENCE ha isolato la rete', '#ffffff', 11, true).setOrigin(0.5, 0),
+      this.add.text(0, -24, 'La salute della rete è arrivata a zero.\nOgni guasto aperto la fa scendere: ripara prima quello che blocca di più.', { fontFamily: FONT_UI, fontSize: '10.5px', color: C.text, align: 'center' }).setOrigin(0.5, 0),
       this.t(0, 30, 'INVIO riprova · Esc torna a IRIS', C.blueT, 9, true).setOrigin(0.5, 0)]);
   }
 
@@ -755,11 +757,11 @@ export class TracerScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(0x000000, 0.2).fillRoundedRect(-178, -73, 360, 150, 6).fillStyle(C.panel).fillRoundedRect(-180, -75, 360, 150, 6).lineStyle(1, C.line).strokeRoundedRect(-180, -75, 360, 150, 6);
       g.fillStyle(C.ok).fillRoundedRect(-180, -75, 360, 20, { tl: 6, tr: 6, bl: 0, br: 0 });
-      const t1 = this.t(0, -71, 'Attività completata · rete funzionante', '#ffffff', 9.5, true).setOrigin(0.5, 0);
+      const t1 = this.t(0, -71, 'Attività completata · rete funzionante', '#ffffff', 11, true).setOrigin(0.5, 0);
       const t2 = this.t(0, -40, '★'.repeat(stars) + '☆'.repeat(3 - stars), '#f0a020', 28, true).setOrigin(0.5, 0);
       const t3 = this.t(0, 4, `★ completato    ${this.hintsUsed === 0 ? '★' : '☆'} senza aiuti    ${healthy ? '★' : '☆'} rete sopra il 50%\nXP guadagnati: ${this.xp} · tempo ${secs}s`, C.text, 8.5).setOrigin(0.5, 0).setAlign('center');
       const hasNext = LEVELS.findIndex((l) => l.id === this.levelId) < LEVELS.length - 1;
-      const t4 = this.t(0, 44, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, C.blueT, 9, true).setOrigin(0.5, 0);
+      const t4 = this.t(0, 44, `${hasNext ? 'INVIO livello successivo · ' : ''}Esc torna a IRIS`, C.blueT, 10.5, true).setOrigin(0.5, 0);
       box.add([g, t1, t2, t3, t4]);
       this.bottomText.setText('');
       this.iris.say([`IRIS: ${this.lv.concept}: fatto. ${stars === 3 ? 'Perfetto.' : 'Rigiocalo: la prossima volta la rete sarà diversa.'}`]);
