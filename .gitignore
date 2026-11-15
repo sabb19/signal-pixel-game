@@ -1,2 +1,6 @@
 node_modules
 dist
+
+# trailer: file audio/video pesanti, fuori dal repo
+trailer/*.wav
+trailer/*.mp4
